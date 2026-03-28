@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-dark-bg text-text-primary font-sans antialiased;
+    min-height: 100vh;
+  }
+
+  * {
+    @apply box-border;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-dark-bg;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-dark-border rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-dark-muted;
+  }
+
+  input, textarea, select {
+    @apply bg-dark-bg border border-dark-border rounded-lg px-4 py-3
+           text-text-primary placeholder-text-muted
+           focus:outline-none focus:border-teal focus:ring-1 focus:ring-teal
+           transition-colors font-mono text-sm;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-dark-surface border border-dark-border rounded-xl p-6;
+  }
+
+  .btn-primary {
+    @apply bg-teal text-dark-bg font-bold font-mono tracking-wider
+           px-6 py-3 rounded-lg hover:bg-teal-light active:bg-teal-dark
+           transition-colors disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply bg-transparent border border-dark-border text-text-secondary font-mono
+           px-6 py-3 rounded-lg hover:border-teal hover:text-teal
+           transition-colors disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .btn-ghost {
+    @apply bg-transparent text-text-secondary font-mono px-4 py-2 rounded-lg
+           hover:bg-dark-hover hover:text-text-primary transition-colors;
+  }
+
+  .label {
+    @apply text-xs text-text-secondary font-mono tracking-widest uppercase mb-2 block;
+  }
+
+  .section-title {
+    @apply text-xs font-mono tracking-widest text-text-secondary uppercase mb-4;
+  }
+
+  .status-badge {
+    @apply text-xs font-mono px-2 py-1 rounded border tracking-wider;
+  }
+
+  .dot-indicator {
+    @apply w-2 h-2 rounded-full inline-block;
+  }
+
+  .step-connector {
+    @apply h-px flex-1 bg-dark-border mx-2;
+  }
+
+  .availability-dot {
+    @apply w-2 h-2 rounded-full inline-block mx-0.5;
+  }
+}

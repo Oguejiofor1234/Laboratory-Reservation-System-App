@@ -1,0 +1,22 @@
+version: '3.9'
+
+# Production override — uses pre-built images from Docker Hub
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  backend:
+    image: ${DOCKERHUB_USERNAME}/lab1708-backend:latest
+    build: !reset null  # Override build with image
+    command: sh -c "npx prisma migrate deploy && node server.js"
+    environment:
+      NODE_ENV: production
+    restart: always
+
+  frontend:
+    image: ${DOCKERHUB_USERNAME}/lab1708-frontend:latest
+    build: !reset null
+    command: !reset null   # nginx uses CMD from Dockerfile
+    restart: always
+
+  nginx:
+    restart: always

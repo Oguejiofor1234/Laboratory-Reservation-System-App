@@ -1,0 +1,195 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ──────────────────────────────────────────────────────────────────
+
+enum Role {
+  STUDENT
+  TECHNOLOGIST
+  ADMIN
+}
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  REJECTED
+}
+
+enum TrainingStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  REJECTED
+}
+
+enum NotificationType {
+  BOOKING_REQUEST
+  BOOKING_CONFIRMED
+  BOOKING_CANCELLED
+  BOOKING_REJECTED
+  TRAINING_REQUEST
+  TRAINING_CONFIRMED
+  TRAINING_REJECTED
+  TRAINING_COMPLETED
+  WAITLIST_AVAILABLE
+  REMINDER
+  SYSTEM
+}
+
+// ─── Models ─────────────────────────────────────────────────────────────────
+
+model User {
+  id                   String    @id @default(cuid())
+  email                String    @unique
+  password             String
+  firstName            String
+  lastName             String
+  role                 Role      @default(STUDENT)
+  isEmailVerified      Boolean   @default(false)
+  emailVerifyToken     String?
+  resetPasswordToken   String?
+  resetPasswordExpires DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  reservations         Reservation[]
+  trainingSessions     TrainingSession[]
+  notifications        Notification[]
+  auditLogs            AuditLog[]
+  waitlistEntries      Waitlist[]
+
+  @@map("users")
+}
+
+model Equipment {
+  id               String   @id @default(cuid())
+  name             String
+  description      String
+  type             String
+  icon             String   @default("⚙️")
+  totalUnits       Int      @default(1)
+  requiresTraining Boolean  @default(true)
+  maintenanceMode  Boolean  @default(false)
+  maintenanceNote  String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  reservations         Reservation[]
+  trainingSessions     TrainingSession[]
+  certifications       TrainingCertification[]
+  waitlistEntries      Waitlist[]
+
+  @@map("equipment")
+}
+
+model Reservation {
+  id           String            @id @default(cuid())
+  userId       String
+  equipmentId  String
+  startTime    DateTime
+  endTime      DateTime
+  status       ReservationStatus @default(PENDING)
+  notes        String?
+  cancelReason String?
+  cancelledAt  DateTime?
+  isFirstTime  Boolean           @default(false)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  equipment     Equipment     @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  notifications Notification[]
+
+  @@index([equipmentId, startTime, endTime])
+  @@index([userId])
+  @@map("reservations")
+}
+
+model TrainingSession {
+  id          String         @id @default(cuid())
+  studentId   String
+  equipmentId String
+  scheduledAt DateTime
+  status      TrainingStatus @default(PENDING)
+  notes       String?
+  completedAt DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  student   User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  equipment Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([equipmentId])
+  @@map("training_sessions")
+}
+
+model TrainingCertification {
+  id          String   @id @default(cuid())
+  userId      String
+  equipmentId String
+  certifiedAt DateTime @default(now())
+  certifiedBy String   // technologist user ID
+
+  equipment Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, equipmentId])
+  @@map("training_certifications")
+}
+
+model Notification {
+  id            String           @id @default(cuid())
+  userId        String
+  title         String
+  message       String
+  type          NotificationType
+  isRead        Boolean          @default(false)
+  reservationId String?
+  createdAt     DateTime         @default(now())
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reservation Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model Waitlist {
+  id            String   @id @default(cuid())
+  userId        String
+  equipmentId   String
+  requestedDate DateTime
+  notified      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  equipment Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, equipmentId, requestedDate])
+  @@map("waitlist")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  resource   String
+  resourceId String?
+  details    Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([resource, resourceId])
+  @@map("audit_logs")
+}
