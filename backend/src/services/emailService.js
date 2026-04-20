@@ -248,73 +248,135 @@ const buildReservationDetails = (reservation, equipment, personInCharge = null) 
 
 /**
  * Notify the lab admin (miracle2cool247@gmail.com) of a new contact message.
- * replyTo is set to the sender's address so hitting Reply in Gmail
- * goes directly to the client — no copy-paste needed.
+ *
+ * ─ Email subject  : "[Contact Form] Miracle Mbah — SEM"  (clean, no "Enquiry about")
+ * ─ Reply-To       : sender's email — hitting Reply in Gmail goes straight to them
+ * ─ Reply button   : big teal "REPLY TO MIRACLE MBAH" mailto: button at the top
+ * ─ Separate rows  : Name / Email / Department / Equipment / Received — all distinct
  */
-const sendContactNotification = async ({ name, email, subject, message }) => {
+const sendContactNotification = async ({ name, email, message, equipment, department }) => {
   const ADMIN_EMAIL = process.env.CONTACT_RECIPIENT || 'miracle2cool247@gmail.com';
-  const timestamp = new Date().toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' });
+  const timestamp   = new Date().toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' });
+
+  // Build a clean, readable subject line — no auto-generated phrases
+  const emailSubject = equipment
+    ? `[Contact Form] ${name} — ${equipment}`
+    : `[Contact Form] ${name} — General Enquiry`;
 
   await send(
     ADMIN_EMAIL,
-    `[Contact Form] ${subject}`,
+    emailSubject,
     baseTemplate(
       'New Contact Message',
-      `<h2>📬 New Contact Form Submission</h2>
-       <p>Someone sent a message through the Lab 1708 contact page.</p>
+      `<h2>📬 New Message from ${name}</h2>
+
+       <!-- ── Big reply button — the lab's primary action ── -->
+       <div style="text-align:center;margin:20px 0 28px;">
+         <a href="mailto:${email}?subject=Re: Your enquiry${equipment ? ` about ${equipment}` : ''}"
+            style="display:inline-block;background:#00bfa5;color:#0d1117;
+                   padding:14px 32px;border-radius:8px;text-decoration:none;
+                   font-weight:900;font-size:15px;letter-spacing:0.5px;
+                   box-shadow:0 4px 16px rgba(0,181,189,0.4);">
+           ✉️ &nbsp; REPLY TO ${name.toUpperCase()}
+         </a>
+         <p style="color:#484f58;font-size:11px;margin:8px 0 0;">
+           Clicking this opens your email client pre-addressed to
+           <a href="mailto:${email}" style="color:#00bfa5;">${email}</a>
+         </p>
+       </div>
+
+       <!-- ── Contact details table ── -->
        <table width="100%" cellpadding="0" cellspacing="0"
-         style="background:#0d1117;border:1px solid #30363d;border-radius:6px;margin:16px 0;">
+         style="background:#0d1117;border:1px solid #30363d;border-radius:6px;margin:0 0 16px;">
          <tbody>
            <tr>
-             <td style="padding:10px 14px;font-size:12px;color:#8b949e;border-bottom:1px solid #21262d;width:35%;">FROM</td>
-             <td style="padding:10px 14px;font-size:13px;color:#e6edf3;font-weight:bold;border-bottom:1px solid #21262d;">
-               ${name} &lt;<a href="mailto:${email}" style="color:#00bfa5;">${email}</a>&gt;
+             <td style="padding:10px 14px;font-size:11px;color:#8b949e;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid #21262d;width:35%;">Name</td>
+             <td style="padding:10px 14px;font-size:13px;color:#e6edf3;font-weight:700;border-bottom:1px solid #21262d;">${name}</td>
+           </tr>
+           <tr>
+             <td style="padding:10px 14px;font-size:11px;color:#8b949e;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid #21262d;">Email</td>
+             <td style="padding:10px 14px;font-size:13px;border-bottom:1px solid #21262d;">
+               <a href="mailto:${email}" style="color:#00bfa5;font-weight:700;">${email}</a>
              </td>
            </tr>
+           ${department ? `
            <tr>
-             <td style="padding:10px 14px;font-size:12px;color:#8b949e;border-bottom:1px solid #21262d;">SUBJECT</td>
-             <td style="padding:10px 14px;font-size:13px;color:#e6edf3;font-weight:bold;border-bottom:1px solid #21262d;">${subject}</td>
-           </tr>
+             <td style="padding:10px 14px;font-size:11px;color:#8b949e;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid #21262d;">Department</td>
+             <td style="padding:10px 14px;font-size:13px;color:#e6edf3;font-weight:700;border-bottom:1px solid #21262d;">${department}</td>
+           </tr>` : ''}
+           ${equipment ? `
            <tr>
-             <td style="padding:10px 14px;font-size:12px;color:#8b949e;">RECEIVED</td>
+             <td style="padding:10px 14px;font-size:11px;color:#8b949e;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid #21262d;">Equipment of Interest</td>
+             <td style="padding:10px 14px;font-size:13px;color:#00bfa5;font-weight:700;border-bottom:1px solid #21262d;">${equipment}</td>
+           </tr>` : ''}
+           <tr>
+             <td style="padding:10px 14px;font-size:11px;color:#8b949e;letter-spacing:1px;text-transform:uppercase;">Received</td>
              <td style="padding:10px 14px;font-size:12px;color:#8b949e;">${timestamp}</td>
            </tr>
          </tbody>
        </table>
-       <div style="background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:20px;margin:16px 0;">
+
+       <!-- ── Message body ── -->
+       <div style="background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:20px;margin:0 0 20px;">
          <p style="color:#8b949e;font-size:11px;letter-spacing:2px;text-transform:uppercase;margin:0 0 12px;">Message</p>
          <p style="color:#e6edf3;font-size:14px;line-height:1.8;white-space:pre-wrap;margin:0;">${message}</p>
        </div>
-       <p style="color:#8b949e;font-size:12px;">↩ Hit <strong>Reply</strong> to respond directly to ${name}.</p>`
+
+       <!-- ── Tip ── -->
+       <p style="color:#484f58;font-size:11px;text-align:center;">
+         💡 You can also hit <strong>Reply</strong> in your email client — it is pre-addressed to ${name}.
+       </p>`
     ),
-    // replyTo — when you click Reply in Gmail, it goes to the client
+    // Reply-To ensures Gmail's Reply button goes directly to the sender
     { replyTo: `${name} <${email}>` }
   );
 };
 
 /**
- * Auto-reply to the person who submitted the contact form.
- * Confirms we received their message and sets expectations.
+ * Auto-reply sent to the person who filled the contact form.
+ *
+ * Shows equipment / department / message as clean separate rows.
+ * Does NOT show any auto-generated subject text — only what the user actually typed.
  */
-const sendContactAutoReply = async ({ name, email, subject }) => {
+const sendContactAutoReply = async ({ name, email, message, equipment, department }) => {
   await send(
     email,
-    `We received your message — REGAL Laboratory`,
+    'We received your message — REGAL Laboratory',
     baseTemplate(
       'Message Received',
       `<h2>Thanks for reaching out, ${name}! 👋</h2>
-       <p>We have received your message and will get back to you as soon as possible.</p>
-       <div class="detail-box">
-         <div class="detail-row">
-           <span class="detail-label">YOUR SUBJECT</span>
-           <span class="detail-value">${subject}</span>
-         </div>
-         <div class="detail-row">
-           <span class="detail-label">STATUS</span>
-           <span class="detail-value" style="color:#d29922;">Pending Review</span>
-         </div>
+       <p>We have received your enquiry and will get back to you within <strong>24 hours</strong>.</p>
+
+       <!-- ── Summary of what was submitted ── -->
+       <table width="100%" cellpadding="0" cellspacing="0"
+         style="background:#0d1117;border:1px solid #30363d;border-radius:6px;margin:20px 0;">
+         <tbody>
+           ${equipment ? `
+           <tr>
+             <td style="padding:10px 14px;font-size:11px;color:#8b949e;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid #21262d;width:40%;">Equipment of Interest</td>
+             <td style="padding:10px 14px;font-size:13px;color:#00bfa5;font-weight:700;border-bottom:1px solid #21262d;">${equipment}</td>
+           </tr>` : ''}
+           ${department ? `
+           <tr>
+             <td style="padding:10px 14px;font-size:11px;color:#8b949e;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid #21262d;">Department / Faculty</td>
+             <td style="padding:10px 14px;font-size:13px;color:#e6edf3;font-weight:700;border-bottom:1px solid #21262d;">${department}</td>
+           </tr>` : ''}
+           <tr>
+             <td style="padding:10px 14px;font-size:11px;color:#8b949e;letter-spacing:1px;text-transform:uppercase;">Status</td>
+             <td style="padding:10px 14px;font-size:13px;color:#d29922;font-weight:700;">⏳ Pending Review</td>
+           </tr>
+         </tbody>
+       </table>
+
+       <!-- ── Their message ── -->
+       <div style="background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:20px;margin:0 0 20px;">
+         <p style="color:#8b949e;font-size:11px;letter-spacing:2px;text-transform:uppercase;margin:0 0 10px;">Your Message</p>
+         <p style="color:#e6edf3;font-size:13px;line-height:1.8;white-space:pre-wrap;margin:0;">${message}</p>
        </div>
-       <p style="font-size:13px;color:#8b949e;">If your enquiry is urgent, you can also reach us directly by replying to this email.</p>`
+
+       <p style="font-size:13px;color:#8b949e;">
+         If your enquiry is urgent, reply directly to this email and we will prioritise your request.
+       </p>`
     )
   );
 };

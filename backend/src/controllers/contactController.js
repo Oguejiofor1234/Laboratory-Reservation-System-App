@@ -18,33 +18,36 @@ const {
  *     shows the success state — errors are logged server-side)
  */
 exports.sendMessage = async (req, res) => {
-  const { name, email, subject, message, website } = req.body;
+  const { name, email, message, equipment, department, website } = req.body;
 
   // ── Honeypot: bots fill hidden fields, real users don't ──────────────────
   if (website) {
-    // Silently succeed so bots don't know they were caught
     return res.json({ success: true, message: 'Message sent.' });
   }
 
-  // ── Basic presence validation (express-validator handles the rest) ────────
-  if (!name || !email || !subject || !message) {
-    throw new AppError('All fields are required', 400);
+  // ── Basic presence validation ─────────────────────────────────────────────
+  if (!name || !email || !message) {
+    throw new AppError('Name, email and message are required', 400);
   }
 
-  // ── Sanitise: trim + cap lengths to prevent huge payloads ─────────────────
+  // ── Sanitise ──────────────────────────────────────────────────────────────
   const payload = {
-    name:    name.trim().slice(0, 100),
-    email:   email.trim().toLowerCase().slice(0, 254),
-    subject: subject.trim().slice(0, 200),
-    message: message.trim().slice(0, 5000),
+    name:       name.trim().slice(0, 100),
+    email:      email.trim().toLowerCase().slice(0, 254),
+    message:    message.trim().slice(0, 5000),
+    equipment:  (equipment || '').trim().slice(0, 100),
+    department: (department || '').trim().slice(0, 150),
   };
 
-  logger.info(`[Contact] New message from ${payload.name} <${payload.email}> — "${payload.subject}"`);
+  logger.info(
+    `[Contact] ${payload.name} <${payload.email}>` +
+    (payload.equipment ? ` — Equipment: ${payload.equipment}` : '')
+  );
 
-  // ── Send emails (both fire-and-forget; never block the HTTP response) ─────
+  // ── Send both emails concurrently ─────────────────────────────────────────
   await Promise.allSettled([
     sendContactNotification(payload),  // → miracle2cool247@gmail.com
-    sendContactAutoReply(payload),     // → sender (confirmation)
+    sendContactAutoReply(payload),     // → sender's inbox (auto-reply)
   ]);
 
   res.json({

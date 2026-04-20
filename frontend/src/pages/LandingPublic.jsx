@@ -409,28 +409,17 @@ const LandingPublic = () => {
 
     if (Object.keys(errs).length) { setContactErrors(errs); return; }
 
-    // Build subject from equipment/department so the backend validator is satisfied
-    const subject =
-      contactForm.equipment
-        ? (lang === 'en' ? `Enquiry about ${contactForm.equipment}` : `Demande concernant ${contactForm.equipment}`)
-        : contactForm.department
-          ? (lang === 'en' ? `General enquiry — ${contactForm.department}` : `Demande générale — ${contactForm.department}`)
-          : (lang === 'en' ? 'General enquiry' : 'Demande générale');
-
-    // Prepend department info to message body so nothing is lost
-    const fullMessage =
-      (contactForm.department ? `Department / Faculty: ${contactForm.department}\n` : '') +
-      (contactForm.equipment  ? `Equipment of Interest: ${contactForm.equipment}\n\n` : '\n') +
-      contactForm.message;
-
+    // Send equipment and department as dedicated separate fields.
+    // The backend builds the email subject from them — no more "Enquiry about XRD" jam.
     setContactLoading(true);
     try {
       await api.post('/contact', {
-        name:    contactForm.name.trim(),
-        email:   contactForm.email.trim(),
-        subject,
-        message: fullMessage,
-        website: '', // honeypot — always blank
+        name:       contactForm.name.trim(),
+        email:      contactForm.email.trim(),
+        message:    contactForm.message.trim(),
+        equipment:  contactForm.equipment,   // e.g. "SEM"
+        department: contactForm.department,  // e.g. "Material Metallurgical Engineering"
+        website:    '',                      // honeypot — always blank
       });
       setContactSent(true);
       setContactForm({ name: '', email: '', department: '', equipment: '', message: '' });

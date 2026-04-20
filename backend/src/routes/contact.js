@@ -56,10 +56,12 @@ router.post(
       .isEmail().withMessage('A valid email address is required')
       .normalizeEmail(),
 
-    body('subject')
-      .trim()
-      .notEmpty().withMessage('Subject is required')
-      .isLength({ max: 200 }).withMessage('Subject must be under 200 characters'),
+    // subject is now built internally — still accepted if sent, just not required
+    body('subject').optional().trim().isLength({ max: 200 }),
+
+    // optional extra fields from the contact form
+    body('equipment').optional().trim().isLength({ max: 100 }),
+    body('department').optional().trim().isLength({ max: 150 }),
 
     body('message')
       .trim()
