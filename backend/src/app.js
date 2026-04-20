@@ -17,21 +17,30 @@ const reservationRoutes = require('./routes/reservations');
 const trainingRoutes = require('./routes/training');
 const notificationRoutes = require('./routes/notifications');
 const dashboardRoutes = require('./routes/dashboard');
+const settingsRoutes = require('./routes/settings');
+const contactRoutes  = require('./routes/contact');
 
 const app = express();
 
 // ─── Security ────────────────────────────────────────────────────────────────
 app.use(helmet());
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: [
+    process.env.CLIENT_URL || 'http://localhost:5173',
+    'http://localhost:5173',
+    'http://192.168.2.34:5173',
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-// ─── Request parsing ─────────────────────────────────────────────────────────
-app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+// ─── Static files (equipment images) ──────────────────────────────────────────
+app.use('/uploads', express.static(require('path').join(__dirname, '../uploads')));
+
+// ─── Request parsing ─────────────────────────────────────────────────────
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 app.use(cookieParser());
 app.use(compression());
 
@@ -62,6 +71,8 @@ app.use('/api/reservations', reservationRoutes);
 app.use('/api/training', trainingRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/contact',  contactRoutes);   // public — no auth required
 
 // ─── 404 handler ─────────────────────────────────────────────────────────────
 app.use('*', (req, res) => {

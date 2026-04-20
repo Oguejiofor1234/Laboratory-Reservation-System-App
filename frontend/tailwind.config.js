@@ -4,33 +4,35 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Dark navy theme matching screenshots
+        // Light theme matching landing page
         dark: {
-          bg: '#0d1117',
-          surface: '#161b22',
-          border: '#30363d',
-          hover: '#21262d',
-          muted: '#484f58',
+          bg: '#EEF4FB',       // page background (LifeLabs-style light blue-grey)
+          surface: '#ffffff',  // card / panel surface
+          border: '#dde8f0',   // borders (blue-tinted)
+          hover: '#e4f0f7',    // hover tint
+          muted: '#c8d8e8',    // muted dividers
         },
-        // Teal accent
+        // Teal accent — exact landing page value
         teal: {
-          DEFAULT: '#00bfa5',
-          light: '#00d4b4',
-          dark: '#00a08c',
+          DEFAULT: '#00B5BD',
+          light: '#00cdd6',
+          dark: '#009aa1',
         },
         // Status colors
         status: {
-          confirmed: '#3fb950',
-          rejected: '#f85149',
-          pending: '#d29922',
-          cancelled: '#8b949e',
+          confirmed: '#27ae60',
+          rejected: '#e74c3c',
+          pending: '#e67e22',
+          cancelled: '#95a5a6',
         },
-        // Text
+        // Text — navy / dark-grey scale
         text: {
-          primary: '#e6edf3',
-          secondary: '#8b949e',
-          muted: '#484f58',
+          primary: '#333333',
+          secondary: '#666666',
+          muted: '#999999',
         },
+        // Explicit navy for headings
+        navy: '#003B5C',
       },
       fontFamily: {
         mono: ['"Courier New"', 'Courier', 'monospace'],

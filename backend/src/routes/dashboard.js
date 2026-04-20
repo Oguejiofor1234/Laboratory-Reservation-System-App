@@ -6,5 +6,6 @@ router.use(protect);
 
 router.get('/student', restrictTo('STUDENT'), dashboardController.studentDashboard);
 router.get('/tech', restrictTo('TECHNOLOGIST', 'ADMIN'), dashboardController.techDashboard);
+router.get('/insights', restrictTo('TECHNOLOGIST', 'ADMIN'), dashboardController.insights);
 
 module.exports = router;

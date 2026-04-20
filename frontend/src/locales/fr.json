@@ -1,8 +1,8 @@
 {
   "app": {
-    "name": "Système de Réservation d'Équipement",
+    "name": "Système de réservation des équipements REGAL",
     "tagline": "Scanner QR · Réserver l'Équipement · Se Former",
-    "lab": "LABORATOIRE SCOLAIRE"
+    "lab": "LABORATOIRE  REGAL"
   },
   "nav": {
     "dashboard": "Tableau de Bord",

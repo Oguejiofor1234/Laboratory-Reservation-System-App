@@ -1,4 +1,4 @@
-name: CI/CD Pipeline — Lab 1708
+name: CI/CD Pipeline — Lab 1780
 
 on:
   push:
@@ -7,8 +7,8 @@ on:
     branches: [main]
 
 env:
-  BACKEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/lab1708-backend
-  FRONTEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/lab1708-frontend
+  BACKEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/lab1780-backend
+  FRONTEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/lab1780-frontend
 
 # ─── Job 1: Semgrep SAST ──────────────────────────────────────────────────────
 jobs:

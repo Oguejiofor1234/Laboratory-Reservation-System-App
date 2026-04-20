@@ -1,7 +1,7 @@
 {
-  "name": "lab1708-frontend",
+  "name": "lab1780-frontend",
   "version": "1.0.0",
-  "description": "Lab 1708 Equipment Reservation System — Frontend",
+  "description": "Lab 1780 Equipment Reservation System — Frontend",
   "type": "module",
   "scripts": {
     "dev": "vite",

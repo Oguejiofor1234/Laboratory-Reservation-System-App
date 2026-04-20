@@ -1,7 +1,7 @@
 const transporter = require('../config/email');
 const logger = require('../utils/logger');
 
-const FROM = process.env.EMAIL_FROM || '"Lab 1708" <noreply@lab1708.edu>';
+const FROM = process.env.EMAIL_FROM || '"Lab 1780" <noreply@lab1780.edu>';
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
 const baseTemplate = (title, body) => `
@@ -36,18 +36,18 @@ const baseTemplate = (title, body) => `
 <body>
   <div class="container">
     <div class="header">
-      <h1>● SCHOOL LABORATORY</h1>
-      <p>1708 Equipment Reservation System</p>
+      <h1>● REGAL LABORATORY</h1>
+      <p>1780 Equipment Reservation System</p>
     </div>
     <div class="body">${body}</div>
-    <div class="footer"><p>© 2024 Lab 1708 · This is an automated message, please do not reply.</p></div>
+    <div class="footer"><p>© 2024 Lab 1780 · This is an automated message, please do not reply.</p></div>
   </div>
 </body>
 </html>`;
 
-const send = async (to, subject, html) => {
+const send = async (to, subject, html, extra = {}) => {
   try {
-    await transporter.sendMail({ from: FROM, to, subject, html });
+    await transporter.sendMail({ from: FROM, to, subject, html, ...extra });
     logger.info(`Email sent to ${to}: ${subject}`);
   } catch (err) {
     logger.error(`Email failed to ${to}: ${err.message}`);
@@ -59,35 +59,47 @@ const send = async (to, subject, html) => {
 
 const sendEmailVerification = async (user, token) => {
   const link = `${CLIENT_URL}/verify-email/${token}`;
-  await send(user.email, 'Verify Your Email — Lab 1708', baseTemplate(
+  await send(user.email, 'Verify Your Email — Lab 1780', baseTemplate(
     'Email Verification',
     `<h2>Welcome, ${user.firstName}!</h2>
-     <p>Please verify your email address to activate your Lab 1708 account.</p>
+     <p>Please verify your email address to activate your Lab 1780 account.</p>
      <a href="${link}" class="btn">VERIFY EMAIL →</a>
+     <p style="margin-top:16px;font-size:12px;color:#8b949e;">If the button above doesn't work, copy and paste this link into your browser:</p>
+     <p style="word-break:break-all;font-size:11px;color:#00bfa5;background:#0d1117;padding:10px;border-radius:4px;border:1px solid #30363d;">${link}</p>
      <p style="font-size:11px;color:#484f58;">Link expires in 24 hours. If you didn't create an account, ignore this email.</p>`
   ));
 };
 
-const sendPasswordReset = async (user, token) => {
-  const link = `${CLIENT_URL}/reset-password/${token}`;
-  await send(user.email, 'Password Reset — Lab 1708', baseTemplate(
+const sendPasswordReset = async (user, token, code, baseUrl = CLIENT_URL) => {
+  const link = `${baseUrl}/reset-password/${token}`;
+  await send(user.email, 'Password Reset — Lab 1780', baseTemplate(
     'Password Reset',
     `<h2>Reset Your Password</h2>
-     <p>You requested a password reset for your Lab 1708 account.</p>
-     <a href="${link}" class="btn">RESET PASSWORD →</a>
-     <p style="font-size:11px;color:#484f58;">Link expires in 1 hour. If you didn't request this, ignore this email.</p>`
+     <p>You requested a password reset for your Lab 1780 account.</p>
+
+     <div style="background:#0d1117;border:2px solid #00bfa5;border-radius:10px;padding:24px;text-align:center;margin:20px 0;">
+       <p style="color:#8b949e;font-size:12px;margin:0 0 8px;letter-spacing:2px;text-transform:uppercase;">Your Reset Code</p>
+       <p style="color:#00bfa5;font-size:42px;font-weight:900;letter-spacing:10px;margin:0;font-family:'Courier New',monospace;">${code}</p>
+       <p style="color:#484f58;font-size:11px;margin:10px 0 0;">Enter this code on the Reset Password page — works on any device</p>
+     </div>
+
+     <p style="color:#8b949e;font-size:13px;">Or click the button below from the same device you used to request this reset:</p>
+     <a href="${link}" class="btn">RESET VIA LINK →</a>
+     <p style="font-size:11px;color:#484f58;">Code and link both expire in 1 hour. If you didn't request this, ignore this email.</p>`
   ));
 };
 
-const sendBookingRequest = async (user, reservation, equipment) => {
-  const details = buildReservationDetails(reservation, equipment);
+const sendBookingRequest = async (user, reservation, equipment, personInCharge = null) => {
+  const details = buildReservationDetails(reservation, equipment, personInCharge);
+  const picName = personInCharge ? `${personInCharge.firstName} ${personInCharge.lastName}` : 'the assigned supervisor';
   await send(user.email, `Booking Request Received — ${equipment.name}`, baseTemplate(
     'Booking Request',
     `<h2>Booking Request Received</h2>
-     <p>Your reservation request for <strong style="color:#00bfa5">${equipment.name}</strong> has been submitted and is pending technologist approval.</p>
+     <p>Your reservation request for <strong style="color:#00bfa5">${equipment.name}</strong> has been submitted and is pending approval from <strong style="color:#00bfa5">${picName}</strong>.</p>
      ${details}
-     <p>You will be notified once your request is reviewed.</p>
-     <a href="${CLIENT_URL}/dashboard" class="btn">VIEW DASHBOARD →</a>`
+     <p>You will be notified by email once your request is reviewed.</p>
+     <p style="font-size:12px;color:#8b949e;">To view your booking status, log in with the email and password you used to register.</p>
+     <a href="${CLIENT_URL}/login" class="btn">LOG IN TO VIEW BOOKING →</a>`
   ));
 };
 
@@ -174,6 +186,22 @@ const sendTrainingCompleted = async (student, equipment) => {
   ));
 };
 
+const sendTrainingRescheduled = async (student, session, equipment, proposedAt, reason) => {
+  await send(student.email, `Training Rescheduled — ${equipment.name}`, baseTemplate(
+    'Training Rescheduled',
+    `<h2>Training <span style="color:#d29922">Rescheduled</span> ⏰</h2>
+     <p>Your supervisor has proposed a <strong>new date and time</strong> for your training on <strong style="color:#00bfa5">${equipment.name}</strong>.</p>
+     <div class="detail-box">
+       <div class="detail-row"><span class="detail-label">EQUIPMENT</span><span class="detail-value">${equipment.name}</span></div>
+       <div class="detail-row"><span class="detail-label">ORIGINAL DATE</span><span class="detail-value">${new Date(session.scheduledAt).toLocaleString()}</span></div>
+       <div class="detail-row"><span class="detail-label">NEW PROPOSED DATE</span><span class="detail-value" style="color:#d29922;font-weight:900">${new Date(proposedAt).toLocaleString()}</span></div>
+       ${reason ? `<div class="detail-row"><span class="detail-label">REASON</span><span class="detail-value">${reason}</span></div>` : ''}
+     </div>
+     <p style="color:#8b949e">Please log in to your dashboard to <strong>Accept</strong> or <strong>Reject</strong> this proposed time.</p>
+     <a href="${CLIENT_URL}/dashboard" class="btn">RESPOND NOW →</a>`
+  ));
+};
+
 const sendReminder = async (user, reservation, equipment) => {
   const details = buildReservationDetails(reservation, equipment);
   await send(user.email, `Reminder: Booking Tomorrow — ${equipment.name}`, baseTemplate(
@@ -195,16 +223,101 @@ const sendWaitlistNotification = async (user, equipment, date) => {
   ));
 };
 
-// ─── Helper ──────────────────────────────────────────────────────────────────
+// ─── Helper ─────────────────────────────────────────────────────────────────────────────
 
-const buildReservationDetails = (reservation, equipment) => `
-  <div class="detail-box">
-    <div class="detail-row"><span class="detail-label">EQUIPMENT</span><span class="detail-value">${equipment.name}</span></div>
-    <div class="detail-row"><span class="detail-label">START</span><span class="detail-value">${new Date(reservation.startTime).toLocaleString()}</span></div>
-    <div class="detail-row"><span class="detail-label">END</span><span class="detail-value">${new Date(reservation.endTime).toLocaleString()}</span></div>
-    <div class="detail-row"><span class="detail-label">STATUS</span><span class="detail-value status-${reservation.status.toLowerCase()}">${reservation.status}</span></div>
-    ${reservation.notes ? `<div class="detail-row"><span class="detail-label">NOTES</span><span class="detail-value">${reservation.notes}</span></div>` : ''}
-  </div>`;
+const detailRow = (label, value, color = '#e6edf3') =>
+  `<tr>
+    <td style="padding:8px 12px;font-size:12px;color:#8b949e;font-family:'Courier New',monospace;border-bottom:1px solid #21262d;white-space:nowrap;width:40%;">${label}</td>
+    <td style="padding:8px 12px;font-size:12px;color:${color};font-family:'Courier New',monospace;font-weight:bold;border-bottom:1px solid #21262d;text-align:right;">${value}</td>
+  </tr>`;
+
+const buildReservationDetails = (reservation, equipment, personInCharge = null) =>
+  `<table width="100%" cellpadding="0" cellspacing="0" style="background:#0d1117;border:1px solid #30363d;border-radius:6px;margin:16px 0;">
+    <tbody>
+      ${detailRow('EQUIPMENT', equipment.name)}
+      ${detailRow('START', new Date(reservation.startTime).toLocaleString())}
+      ${detailRow('END', new Date(reservation.endTime).toLocaleString())}
+      ${personInCharge ? detailRow('PERSON IN CHARGE', `${personInCharge.firstName} ${personInCharge.lastName}`, '#00bfa5') : ''}
+      ${detailRow('STATUS', reservation.status, reservation.status === 'CONFIRMED' ? '#3fb950' : reservation.status === 'REJECTED' ? '#f85149' : '#d29922')}
+      ${reservation.experimentDescription ? detailRow('EXPERIMENT', reservation.experimentDescription) : ''}
+      ${reservation.notes ? detailRow('NOTES', reservation.notes) : ''}
+    </tbody>
+  </table>`;
+
+// ─── Contact form ─────────────────────────────────────────────────────────────
+
+/**
+ * Notify the lab admin (miracle2cool247@gmail.com) of a new contact message.
+ * replyTo is set to the sender's address so hitting Reply in Gmail
+ * goes directly to the client — no copy-paste needed.
+ */
+const sendContactNotification = async ({ name, email, subject, message }) => {
+  const ADMIN_EMAIL = process.env.CONTACT_RECIPIENT || 'miracle2cool247@gmail.com';
+  const timestamp = new Date().toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' });
+
+  await send(
+    ADMIN_EMAIL,
+    `[Contact Form] ${subject}`,
+    baseTemplate(
+      'New Contact Message',
+      `<h2>📬 New Contact Form Submission</h2>
+       <p>Someone sent a message through the Lab 1708 contact page.</p>
+       <table width="100%" cellpadding="0" cellspacing="0"
+         style="background:#0d1117;border:1px solid #30363d;border-radius:6px;margin:16px 0;">
+         <tbody>
+           <tr>
+             <td style="padding:10px 14px;font-size:12px;color:#8b949e;border-bottom:1px solid #21262d;width:35%;">FROM</td>
+             <td style="padding:10px 14px;font-size:13px;color:#e6edf3;font-weight:bold;border-bottom:1px solid #21262d;">
+               ${name} &lt;<a href="mailto:${email}" style="color:#00bfa5;">${email}</a>&gt;
+             </td>
+           </tr>
+           <tr>
+             <td style="padding:10px 14px;font-size:12px;color:#8b949e;border-bottom:1px solid #21262d;">SUBJECT</td>
+             <td style="padding:10px 14px;font-size:13px;color:#e6edf3;font-weight:bold;border-bottom:1px solid #21262d;">${subject}</td>
+           </tr>
+           <tr>
+             <td style="padding:10px 14px;font-size:12px;color:#8b949e;">RECEIVED</td>
+             <td style="padding:10px 14px;font-size:12px;color:#8b949e;">${timestamp}</td>
+           </tr>
+         </tbody>
+       </table>
+       <div style="background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:20px;margin:16px 0;">
+         <p style="color:#8b949e;font-size:11px;letter-spacing:2px;text-transform:uppercase;margin:0 0 12px;">Message</p>
+         <p style="color:#e6edf3;font-size:14px;line-height:1.8;white-space:pre-wrap;margin:0;">${message}</p>
+       </div>
+       <p style="color:#8b949e;font-size:12px;">↩ Hit <strong>Reply</strong> to respond directly to ${name}.</p>`
+    ),
+    // replyTo — when you click Reply in Gmail, it goes to the client
+    { replyTo: `${name} <${email}>` }
+  );
+};
+
+/**
+ * Auto-reply to the person who submitted the contact form.
+ * Confirms we received their message and sets expectations.
+ */
+const sendContactAutoReply = async ({ name, email, subject }) => {
+  await send(
+    email,
+    `We received your message — REGAL Laboratory`,
+    baseTemplate(
+      'Message Received',
+      `<h2>Thanks for reaching out, ${name}! 👋</h2>
+       <p>We have received your message and will get back to you as soon as possible.</p>
+       <div class="detail-box">
+         <div class="detail-row">
+           <span class="detail-label">YOUR SUBJECT</span>
+           <span class="detail-value">${subject}</span>
+         </div>
+         <div class="detail-row">
+           <span class="detail-label">STATUS</span>
+           <span class="detail-value" style="color:#d29922;">Pending Review</span>
+         </div>
+       </div>
+       <p style="font-size:13px;color:#8b949e;">If your enquiry is urgent, you can also reach us directly by replying to this email.</p>`
+    )
+  );
+};
 
 module.exports = {
   sendEmailVerification,
@@ -217,6 +330,9 @@ module.exports = {
   sendTrainingRequest,
   sendTrainingConfirmed,
   sendTrainingCompleted,
+  sendTrainingRescheduled,
   sendReminder,
   sendWaitlistNotification,
+  sendContactNotification,
+  sendContactAutoReply,
 };

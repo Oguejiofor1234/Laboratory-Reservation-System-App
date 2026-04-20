@@ -18,7 +18,7 @@ i18n
     detection: {
       // Order of detection: localStorage → browser navigator → default
       order: ['localStorage', 'navigator'],
-      lookupLocalStorage: 'lab1708-lang',
+      lookupLocalStorage: 'lab1780-lang',
       caches: ['localStorage'],
     },
     interpolation: {

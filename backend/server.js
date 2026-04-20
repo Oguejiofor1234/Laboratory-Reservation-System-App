@@ -33,7 +33,7 @@ process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
 server.listen(PORT, () => {
-  logger.info(`🚀 Lab 1708 API running on port ${PORT} [${process.env.NODE_ENV}]`);
+  logger.info(`🚀 Lab 1780 API running on port ${PORT} [${process.env.NODE_ENV}]`);
 });
 
 module.exports = server;

@@ -8,45 +8,34 @@ const StepIndicator = ({ currentStep }) => {
   const { t } = useTranslation();
 
   return (
-    <div className="flex items-center justify-center mb-8">
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 32 }}>
       {STEPS.map((stepKey, index) => {
         const stepNum = index + 1;
         const isCompleted = currentStep > stepNum;
         const isActive = currentStep === stepNum;
 
         return (
-          <div key={stepKey} className="flex items-center">
-            {/* Step circle */}
-            <div className="flex flex-col items-center">
+          <div key={stepKey} style={{ display: 'flex', alignItems: 'center' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <motion.div
                 animate={{
-                  backgroundColor: isCompleted ? '#00bfa5' : isActive ? 'transparent' : 'transparent',
-                  borderColor: isCompleted ? '#00bfa5' : isActive ? '#00bfa5' : '#30363d',
+                  backgroundColor: isCompleted ? '#00B5BD' : isActive ? '#fff' : '#f0f0f0',
+                  borderColor: isCompleted ? '#00B5BD' : isActive ? '#00B5BD' : '#e0e0e0',
                 }}
-                className="w-9 h-9 rounded-full border-2 flex items-center justify-center font-mono text-sm font-bold"
+                style={{ width: 36, height: 36, borderRadius: '50%', border: '2px solid', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14 }}
               >
                 {isCompleted ? (
-                  <Check size={14} className="text-dark-bg" />
+                  <Check size={14} color="#fff" />
                 ) : (
-                  <span className={isActive ? 'text-teal' : 'text-text-muted'}>
-                    {stepNum}
-                  </span>
+                  <span style={{ color: isActive ? '#00B5BD' : '#aaa' }}>{stepNum}</span>
                 )}
               </motion.div>
-              <span className={`text-[9px] font-mono tracking-widest mt-1 uppercase ${
-                isActive ? 'text-teal' : isCompleted ? 'text-teal/70' : 'text-text-muted'
-              }`}>
+              <span style={{ fontSize: 9, letterSpacing: 1, marginTop: 4, textTransform: 'uppercase', fontWeight: 700, color: isActive ? '#00B5BD' : isCompleted ? '#00B5BD' : '#aaa' }}>
                 {t(stepKey)}
               </span>
             </div>
-
-            {/* Connector */}
             {index < STEPS.length - 1 && (
-              <div className="h-px w-16 sm:w-24 mx-2 mt-[-16px]">
-                <div className={`h-full transition-colors ${
-                  currentStep > stepNum ? 'bg-teal' : 'bg-dark-border'
-                }`} />
-              </div>
+              <div style={{ height: 2, width: 48, margin: '0 6px', marginTop: -16, background: currentStep > stepNum ? '#00B5BD' : '#e0e0e0', transition: 'background 0.3s' }} />
             )}
           </div>
         );

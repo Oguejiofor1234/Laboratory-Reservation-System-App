@@ -52,8 +52,8 @@ const Landing = () => {
         {/* CTA buttons */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           {user ? (
-            <Link to="/dashboard" className="btn-primary flex items-center gap-2">
-              <span>{t('nav.dashboard')}</span>
+            <Link to="/book" className="btn-primary flex items-center gap-2">
+              <span>{t('nav.book')}</span>
               <ArrowRight size={16} />
             </Link>
           ) : (

@@ -1,14 +1,13 @@
 const prisma = require('../config/database');
 const AppError = require('../utils/AppError');
 const { checkConflict } = require('../services/conflictDetection');
-const { enforceTrainingGate } = require('../services/trainingGate');
 const { processWaitlist } = require('../services/cronJobs');
 const {
   sendBookingRequest, sendTechNewBooking, sendBookingConfirmed,
   sendBookingRejected, sendBookingCancelled,
 } = require('../services/emailService');
 const {
-  notifyTechsNewBooking, notifyBookingConfirmed,
+  notifyTechsNewBooking, notifyPersonInCharge, notifyBookingConfirmed,
   notifyBookingRejected, notifyBookingCancelled,
 } = require('../services/notificationService');
 const { parsePagination, paginatedResponse } = require('../utils/helpers');
@@ -16,11 +15,12 @@ const { parsePagination, paginatedResponse } = require('../utils/helpers');
 const RESERVATION_INCLUDE = {
   user: { select: { id: true, firstName: true, lastName: true, email: true } },
   equipment: true,
+  personInCharge: { select: { id: true, firstName: true, lastName: true, email: true } },
 };
 
 // ─── Create reservation ───────────────────────────────────────────────────────
 exports.create = async (req, res) => {
-  const { equipmentId, startTime, endTime, notes, isFirstTime } = req.body;
+  const { equipmentId, startTime, endTime, notes, experimentDescription, personInChargeId, isFirstTime, bookerEmail } = req.body;
 
   const start = new Date(startTime);
   const end = new Date(endTime);
@@ -28,12 +28,7 @@ exports.create = async (req, res) => {
   if (start >= end) throw new AppError('Start time must be before end time', 400);
   if (start < new Date()) throw new AppError('Cannot book in the past', 400);
 
-  // Training gate — throws 403 if not certified and equipment requires it
-  if (!isFirstTime) {
-    await enforceTrainingGate(req.user.id, equipmentId);
-  }
-
-  // Conflict detection — throws 409 if fully booked
+  // Conflict detection
   await checkConflict(equipmentId, start, end);
 
   const reservation = await prisma.reservation.create({
@@ -43,20 +38,25 @@ exports.create = async (req, res) => {
       startTime: start,
       endTime: end,
       notes,
+      experimentDescription,
+      personInChargeId: personInChargeId || null,
       isFirstTime: Boolean(isFirstTime),
     },
     include: RESERVATION_INCLUDE,
   });
 
-  // Email + in-app notifications (fire and forget)
-  sendBookingRequest(reservation.user, reservation, reservation.equipment);
-  sendTechNewBooking(
-    process.env.EMAIL_USER || 'tech@lab1708.edu',
-    reservation.user,
-    reservation,
-    reservation.equipment
-  );
-  notifyTechsNewBooking(reservation.user, reservation, reservation.equipment);
+  // Email student — use the email from the booking form if provided, otherwise use registered email
+  const notifyUser = { ...reservation.user, email: bookerEmail || reservation.user.email };
+  sendBookingRequest(notifyUser, reservation, reservation.equipment, reservation.personInCharge);
+
+  // Notify person in charge (in-app + email)
+  if (personInChargeId && reservation.personInCharge) {
+    notifyPersonInCharge(personInChargeId, reservation.user, reservation, reservation.equipment);
+    sendTechNewBooking(reservation.personInCharge.email, reservation.user, reservation, reservation.equipment);
+  } else {
+    notifyTechsNewBooking(reservation.user, reservation, reservation.equipment);
+    sendTechNewBooking(process.env.EMAIL_USER, reservation.user, reservation, reservation.equipment);
+  }
 
   res.status(201).json({ success: true, data: reservation });
 };

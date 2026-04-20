@@ -5,9 +5,15 @@ const logger = require('../utils/logger');
 let io;
 
 const initSocket = (server) => {
+  const allowedOrigins = [
+    process.env.CLIENT_URL || 'http://localhost:5173',
+    'http://localhost:5173',
+    'http://192.168.2.34:5173',
+  ];
+
   io = new Server(server, {
     cors: {
-      origin: process.env.CLIENT_URL || 'http://localhost:5173',
+      origin: allowedOrigins,
       methods: ['GET', 'POST'],
       credentials: true,
     },

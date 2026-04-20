@@ -1,7 +1,7 @@
 {
-  "name": "lab1708-backend",
+  "name": "lab1780-backend",
   "version": "1.0.0",
-  "description": "Lab 1708 Equipment Reservation System — Backend API",
+  "description": "Lab 1780 Equipment Reservation System — Backend API",
   "main": "server.js",
   "scripts": {
     "dev": "nodemon server.js",
@@ -29,6 +29,7 @@
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
+    "multer": "^2.1.1",
     "node-cron": "^3.0.3",
     "nodemailer": "^6.9.15",
     "socket.io": "^4.8.1",
@@ -46,12 +47,30 @@
   },
   "jest": {
     "testEnvironment": "node",
-    "testMatch": ["**/tests/**/*.test.js"],
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
     "setupFilesAfterFramework": [],
     "coverageDirectory": "coverage",
-    "collectCoverageFrom": ["src/**/*.js"]
+    "collectCoverageFrom": [
+      "src/**/*.js"
+    ]
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "nodemonConfig": {
+    "watch": [
+      "src",
+      "server.js"
+    ],
+    "ext": "js,json",
+    "ignore": [
+      "node_modules",
+      "prisma",
+      "tests",
+      "*.test.js",
+      "logs"
+    ]
   }
 }

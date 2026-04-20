@@ -32,6 +32,11 @@ router.post('/login', authLimiter, [
 router.post('/refresh', authController.refresh);
 router.post('/logout', authController.logout);
 router.get('/me', protect, authController.me);
+router.get('/technologists', protect, authController.getTechnologists);
+// Public resend (after registration, before login) or authenticated resend
+router.post('/resend-verification', authController.resendVerification);
+router.get('/check-verified', authController.checkVerified);
+router.delete('/account', protect, authController.deleteAccount);
 router.get('/verify-email/:token', authController.verifyEmail);
 
 router.post('/forgot-password', authLimiter, [
@@ -43,5 +48,12 @@ router.post('/reset-password/:token', [
   body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
   validate,
 ], authController.resetPassword);
+
+router.post('/reset-by-code', [
+  body('email').isEmail().normalizeEmail(),
+  body('code').isLength({ min: 6, max: 6 }).withMessage('Code must be 6 digits'),
+  body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+  validate,
+], authController.resetByCode);
 
 module.exports = router;

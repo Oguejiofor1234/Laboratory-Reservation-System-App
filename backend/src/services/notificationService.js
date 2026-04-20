@@ -82,9 +82,24 @@ const notifyBookingCancelled = async (reservation, reason) => {
   });
 };
 
+/**
+ * Notify a specific person in charge of a new booking assigned to them
+ */
+const notifyPersonInCharge = async (personInChargeId, student, reservation, equipment) => {
+  await createNotification({
+    userId: personInChargeId,
+    title: 'New Booking Request Assigned to You',
+    message: `${student.firstName} ${student.lastName} booked ${equipment.name} and selected you as person in charge. Start: ${new Date(reservation.startTime).toLocaleDateString()}.`,
+    type: 'BOOKING_REQUEST',
+    reservationId: reservation.id,
+  });
+  emitToTechnologists('booking:new', { reservation, student, equipment });
+};
+
 module.exports = {
   createNotification,
   notifyTechsNewBooking,
+  notifyPersonInCharge,
   notifyBookingConfirmed,
   notifyBookingRejected,
   notifyBookingCancelled,

@@ -1,6 +1,5 @@
 const prisma = require('../config/database');
 const AppError = require('../utils/AppError');
-const { issueCertification } = require('../services/trainingGate');
 const {
   sendTrainingRequest, sendTrainingConfirmed, sendTrainingCompleted,
 } = require('../services/emailService');
@@ -121,7 +120,114 @@ exports.reject = async (req, res) => {
   res.json({ success: true, data: updated });
 };
 
-// ─── Complete training — issues certification ─────────────────────────────────
+// ─── Reschedule training (supervisor proposes new time) ────────────────────
+exports.reschedule = async (req, res) => {
+  const { proposedAt, reason } = req.body;
+  if (!proposedAt) throw new AppError('Proposed date/time is required', 400);
+
+  const proposed = new Date(proposedAt);
+  if (proposed < new Date()) throw new AppError('Proposed time must be in the future', 400);
+
+  const session = await prisma.trainingSession.findUnique({
+    where: { id: req.params.id },
+    include: SESSION_INCLUDE,
+  });
+  if (!session) throw new AppError('Training session not found', 404);
+  if (!['PENDING', 'CONFIRMED'].includes(session.status))
+    throw new AppError('Only pending or confirmed sessions can be rescheduled', 400);
+
+  const updated = await prisma.trainingSession.update({
+    where: { id: session.id },
+    data: { status: 'RESCHEDULED', proposedAt: proposed, rescheduleReason: reason || null },
+    include: SESSION_INCLUDE,
+  });
+
+  // Notify student
+  await createNotification({
+    userId: updated.studentId,
+    title: 'Training Rescheduled',
+    message: `Your training for ${updated.equipment.name} has been rescheduled to ${proposed.toLocaleString()}. Please confirm or reject the new time.`,
+    type: 'TRAINING_CONFIRMED',
+  });
+
+  // Email student
+  const { sendTrainingRescheduled } = require('../services/emailService');
+  if (typeof sendTrainingRescheduled === 'function') {
+    await sendTrainingRescheduled(updated.student, updated, updated.equipment, proposed, reason);
+  }
+
+  res.json({ success: true, data: updated });
+};
+
+// ─── Student accepts rescheduled time ─────────────────────────────────────
+exports.acceptReschedule = async (req, res) => {
+  const session = await prisma.trainingSession.findUnique({
+    where: { id: req.params.id },
+    include: SESSION_INCLUDE,
+  });
+  if (!session) throw new AppError('Training session not found', 404);
+  if (session.status !== 'RESCHEDULED') throw new AppError('Session is not awaiting reschedule confirmation', 400);
+  if (session.studentId !== req.user.id) throw new AppError('Access denied', 403);
+
+  const updated = await prisma.trainingSession.update({
+    where: { id: session.id },
+    data: { status: 'CONFIRMED', scheduledAt: session.proposedAt, proposedAt: null },
+    include: SESSION_INCLUDE,
+  });
+
+  // Notify supervisors
+  const technologists = await prisma.user.findMany({
+    where: { role: { in: ['TECHNOLOGIST', 'ADMIN'] } },
+    select: { id: true },
+  });
+  for (const tech of technologists) {
+    await createNotification({
+      userId: tech.id,
+      title: 'Reschedule Accepted',
+      message: `${updated.student.firstName} ${updated.student.lastName} accepted the rescheduled training for ${updated.equipment.name}.`,
+      type: 'TRAINING_CONFIRMED',
+    });
+  }
+
+  await sendTrainingConfirmed(updated.student, updated, updated.equipment);
+  res.json({ success: true, data: updated });
+};
+
+// ─── Student rejects rescheduled time ─────────────────────────────────────
+exports.rejectReschedule = async (req, res) => {
+  const { reason } = req.body;
+  const session = await prisma.trainingSession.findUnique({
+    where: { id: req.params.id },
+    include: SESSION_INCLUDE,
+  });
+  if (!session) throw new AppError('Training session not found', 404);
+  if (session.status !== 'RESCHEDULED') throw new AppError('Session is not awaiting reschedule confirmation', 400);
+  if (session.studentId !== req.user.id) throw new AppError('Access denied', 403);
+
+  const updated = await prisma.trainingSession.update({
+    where: { id: session.id },
+    data: { status: 'PENDING', proposedAt: null, rescheduleReason: null },
+    include: SESSION_INCLUDE,
+  });
+
+  // Notify supervisors
+  const technologists = await prisma.user.findMany({
+    where: { role: { in: ['TECHNOLOGIST', 'ADMIN'] } },
+    select: { id: true },
+  });
+  for (const tech of technologists) {
+    await createNotification({
+      userId: tech.id,
+      title: 'Reschedule Rejected',
+      message: `${updated.student.firstName} ${updated.student.lastName} rejected the proposed reschedule for ${updated.equipment.name}. Please propose a new time.`,
+      type: 'TRAINING_REJECTED',
+    });
+  }
+
+  res.json({ success: true, data: updated });
+};
+
+// ─── Complete training — issues certification
 exports.complete = async (req, res) => {
   const session = await prisma.trainingSession.findUnique({
     where: { id: req.params.id },
@@ -136,27 +242,14 @@ exports.complete = async (req, res) => {
     include: SESSION_INCLUDE,
   });
 
-  // Issue certification so student can now book this equipment
-  await issueCertification(updated.studentId, updated.equipmentId, req.user.id);
-
   await sendTrainingCompleted(updated.student, updated.equipment);
   await createNotification({
     userId: updated.studentId,
     title: 'Training Completed 🎓',
-    message: `You are now certified to use ${updated.equipment.name}. You can now book it!`,
+    message: `Your training on ${updated.equipment.name} has been marked complete.`,
     type: 'TRAINING_COMPLETED',
   });
 
   res.json({ success: true, data: updated });
 };
 
-// ─── Get certifications for current user ──────────────────────────────────────
-exports.getCertifications = async (req, res) => {
-  const userId = req.user.id;
-  const certs = await prisma.trainingCertification.findMany({
-    where: { userId },
-    include: { equipment: true },
-    orderBy: { certifiedAt: 'desc' },
-  });
-  res.json({ success: true, data: certs });
-};

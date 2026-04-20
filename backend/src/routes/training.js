@@ -7,8 +7,6 @@ const { audit } = require('../middleware/auditLog');
 
 router.use(protect);
 
-router.get('/certifications', trainingController.getCertifications);
-
 router.post('/', requireVerified, [
   body('equipmentId').notEmpty().withMessage('Equipment ID required'),
   body('scheduledAt').isISO8601().withMessage('Valid scheduled time required'),
@@ -24,6 +22,18 @@ router.patch('/:id/reject', restrictTo('TECHNOLOGIST', 'ADMIN'), [
   body('reason').optional().isString(),
   validate,
 ], audit('REJECT', 'training'), trainingController.reject);
+
+router.patch('/:id/reschedule', restrictTo('TECHNOLOGIST', 'ADMIN'), [
+  body('proposedAt').isISO8601().withMessage('Valid proposed date/time required'),
+  body('reason').optional().isString(),
+  validate,
+], audit('RESCHEDULE', 'training'), trainingController.reschedule);
+
+router.patch('/:id/accept-reschedule', trainingController.acceptReschedule);
+router.patch('/:id/reject-reschedule', [
+  body('reason').optional().isString(),
+  validate,
+], trainingController.rejectReschedule);
 
 router.patch('/:id/complete', restrictTo('TECHNOLOGIST', 'ADMIN'),
   audit('COMPLETE', 'training'), trainingController.complete);

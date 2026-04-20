@@ -23,6 +23,14 @@ export const AuthProvider = ({ children }) => {
       }
     };
     restoreSession();
+
+    // Listen for forced logout triggered by the API interceptor
+    const handleForceLogout = () => {
+      localStorage.removeItem('accessToken');
+      setUser(null);
+    };
+    window.addEventListener('auth:logout', handleForceLogout);
+    return () => window.removeEventListener('auth:logout', handleForceLogout);
   }, []);
 
   const login = useCallback(async (email, password) => {
@@ -50,8 +58,15 @@ export const AuthProvider = ({ children }) => {
     setUser((prev) => ({ ...prev, ...updates }));
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const meRes = await api.get('/auth/me');
+      setUser(meRes.data.data);
+    } catch { /* ignore */ }
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, register, updateUser }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, register, updateUser, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

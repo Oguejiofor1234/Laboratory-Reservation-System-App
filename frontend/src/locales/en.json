@@ -1,8 +1,8 @@
 {
   "app": {
-    "name": "Equipment Reservation System",
+    "name": " REGAL Equipment Reservation System",
     "tagline": "Scan QR · Book Equipment · Get Trained",
-    "lab": "SCHOOL LABORATORY"
+    "lab": "REGAL LABORATORY"
   },
   "nav": {
     "dashboard": "Dashboard",

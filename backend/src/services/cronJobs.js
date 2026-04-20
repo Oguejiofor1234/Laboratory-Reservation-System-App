@@ -42,8 +42,8 @@ const initCronJobs = () => {
     }
   });
 
-  // ─── Daily midnight: mark past CONFIRMED reservations as COMPLETED ─────────
-  cron.schedule('0 0 * * *', async () => {
+  // ─── Every hour: mark past CONFIRMED reservations as COMPLETED ─────────────
+  cron.schedule('0 * * * *', async () => {
     try {
       const result = await prisma.reservation.updateMany({
         where: {

@@ -1,6 +1,6 @@
-# 🔬 Lab 1708 — Equipment Reservation System
+# 🔬 Lab 1780 — Equipment Reservation System
 
-> A production-ready, full-stack equipment reservation platform for Laboratory 1708 with online booking, email notifications, real-time updates, and a complete DevSecOps CI/CD pipeline.
+> A production-ready, full-stack equipment reservation platform for Laboratory 1780 with online booking, email notifications, real-time updates, and a complete DevSecOps CI/CD pipeline.
 
 ![Tech Stack](https://img.shields.io/badge/React-18-61DAFB?logo=react)
 ![Backend](https://img.shields.io/badge/Node.js-22-339933?logo=node.js)
@@ -75,8 +75,8 @@ Render Deploy (via webhook)
 ### 1. Clone & configure
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/lab1708-reservation.git
-cd lab1708-reservation
+git clone https://github.com/YOUR_USERNAME/lab1780-reservation.git
+cd lab1780-reservation
 cp .env.example .env
 ```
 
@@ -125,8 +125,8 @@ Backend: http://localhost:5000 | Frontend: http://localhost:5173
 
 | Role | Email | Password |
 |------|-------|----------|
-| Technologist | `tech@lab1708.edu` | `Tech@1708!` |
-| Student | `student@lab1708.edu` | `Student@1708!` |
+| Technologist | `tech@lab1780.edu` | `Tech@1780!` |
+| Student | `student@lab1780.edu` | `Student@1780!` |
 
 ---
 
@@ -148,7 +148,7 @@ Backend: http://localhost:5000 | Frontend: http://localhost:5173
 | `EMAIL_SECURE` | Use TLS | `false` |
 | `EMAIL_USER` | SMTP username | `you@gmail.com` |
 | `EMAIL_PASS` | SMTP password / app password | — |
-| `EMAIL_FROM` | From address | `"Lab 1708" <you@gmail.com>` |
+| `EMAIL_FROM` | From address | `"Lab 1780" <you@gmail.com>` |
 | `CLIENT_URL` | Frontend URL (for CORS + email links) | `http://localhost:5173` |
 
 ### Frontend
@@ -169,14 +169,14 @@ Backend: http://localhost:5000 | Frontend: http://localhost:5173
 
 ### Backend — Render Web Service
 1. New → Web Service → Docker image from Docker Hub
-2. Image: `your-dockerhub-username/lab1708-backend:latest`
+2. Image: `your-dockerhub-username/lab1780-backend:latest`
 3. Set environment variables (all from `.env.example` backend section)
 4. Start command: `sh -c "npx prisma migrate deploy && node server.js"`
 5. Copy the deploy hook URL → add as `RENDER_DEPLOY_HOOK_BACKEND` in GitHub Secrets
 
 ### Frontend — Render Static Site
 1. New → Static Site → Docker image
-2. Image: `your-dockerhub-username/lab1708-frontend:latest`
+2. Image: `your-dockerhub-username/lab1780-frontend:latest`
 3. Set `VITE_API_URL` = your Render backend URL + `/api`
 4. Copy the deploy hook URL → add as `RENDER_DEPLOY_HOOK_FRONTEND` in GitHub Secrets
 
@@ -192,8 +192,8 @@ Go to your repo → **Settings → Secrets and variables → Actions**:
 | `DOCKERHUB_TOKEN` | Docker Hub access token (Settings → Security) |
 | `RENDER_DEPLOY_HOOK_BACKEND` | Render deploy hook URL for backend service |
 | `RENDER_DEPLOY_HOOK_FRONTEND` | Render deploy hook URL for frontend service |
-| `VITE_API_URL` | Production API URL (e.g. `https://lab1708-api.onrender.com/api`) |
-| `VITE_SOCKET_URL` | Production socket URL (e.g. `https://lab1708-api.onrender.com`) |
+| `VITE_API_URL` | Production API URL (e.g. `https://lab1780-api.onrender.com/api`) |
+| `VITE_SOCKET_URL` | Production socket URL (e.g. `https://lab1780-api.onrender.com`) |
 | `SEMGREP_APP_TOKEN` | (Optional) Semgrep Cloud token for dashboard |
 
 ---
@@ -201,7 +201,7 @@ Go to your repo → **Settings → Secrets and variables → Actions**:
 ## 📁 Project Structure
 
 ```
-lab1708-reservation/
+lab1780-reservation/
 ├── .github/workflows/ci-cd.yml     # CI/CD pipeline
 ├── frontend/                        # React 18 + Vite + Tailwind
 │   ├── src/
@@ -245,7 +245,7 @@ npm run test:coverage # With coverage report
 
 The frontend includes an **EN / FR** toggle in the navbar. 
 - Click the `EN | FR` pill in the top-right to switch instantly
-- Selection is persisted to `localStorage` (key: `lab1708-lang`)
+- Selection is persisted to `localStorage` (key: `lab1780-lang`)
 - All UI strings are translated including: navigation, booking flow, dashboard, notifications, error messages, and status labels
 - The notification bell shows relative times in the selected language (via `date-fns` locale)
 
@@ -288,4 +288,4 @@ When running locally, visit: **http://localhost:5000/api/docs**
 
 ---
 
-*Built for Lab 1708 · Co-Authored-By: Oz <oz-agent@warp.dev>*
+*Built for Lab 1780 · Co-Authored-By: Oz <oz-agent@warp.dev>*

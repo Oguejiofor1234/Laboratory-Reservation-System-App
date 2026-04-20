@@ -1,12 +1,14 @@
 const prisma = require('../config/database');
 const AppError = require('../utils/AppError');
 const { getAvailabilityForDate } = require('../services/conflictDetection');
-const { isCertified } = require('../services/trainingGate');
 
 // ─── List equipment ────────────────────────────────────────────────────────────
 exports.getAll = async (req, res) => {
   const equipment = await prisma.equipment.findMany({
     orderBy: { name: 'asc' },
+    include: {
+      personInCharge: { select: { id: true, firstName: true, lastName: true } },
+    },
   });
 
   // Enrich with current availability (active bookings today)
@@ -14,27 +16,64 @@ exports.getAll = async (req, res) => {
   today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
 
+  const now = new Date();
+
   const enriched = await Promise.all(
     equipment.map(async (eq) => {
-      const activeCount = await prisma.reservation.count({
-        where: {
-          equipmentId: eq.id,
-          status: { in: ['PENDING', 'CONFIRMED'] },
-          startTime: { lt: tomorrow },
-          endTime: { gt: today },
-        },
-      });
+      // Run all per-equipment queries in parallel
+      const [activeReservations, nextReservation, confirmedNext] = await Promise.all([
+        // Active reservations overlapping right now
+        prisma.reservation.findMany({
+          where: {
+            equipmentId: eq.id,
+            status: { in: ['PENDING', 'CONFIRMED'] },
+            startTime: { lte: now },
+            endTime: { gt: now },
+          },
+          include: { user: { select: { firstName: true, lastName: true } } },
+          orderBy: { endTime: 'asc' },
+        }),
+        // Next upcoming reservation (starts in future)
+        prisma.reservation.findFirst({
+          where: {
+            equipmentId: eq.id,
+            status: { in: ['PENDING', 'CONFIRMED'] },
+            startTime: { gt: now },
+          },
+          include: { user: { select: { firstName: true, lastName: true } } },
+          orderBy: { startTime: 'asc' },
+        }),
+        // Next CONFIRMED reservation specifically
+        prisma.reservation.findFirst({
+          where: {
+            equipmentId: eq.id,
+            status: 'CONFIRMED',
+            startTime: { gt: now },
+          },
+          include: { user: { select: { firstName: true, lastName: true } } },
+          orderBy: { startTime: 'asc' },
+        }),
+      ]);
 
-      // Include certification status if user is authenticated
-      let isCertifiedUser = null;
-      if (req.user) {
-        isCertifiedUser = await isCertified(req.user.id, eq.id);
-      }
+      // Current user (first active reservation)
+      const currentRes = activeReservations[0] || null;
+
+      // Availability date: when last active reservation ends
+      const lastActive = activeReservations[activeReservations.length - 1] || null;
 
       return {
         ...eq,
-        availableNow: Math.max(0, eq.totalUnits - activeCount),
-        isCertified: isCertifiedUser,
+        availableNow: Math.max(0, eq.totalUnits - activeReservations.length),
+        currentUser: currentRes
+          ? { name: `${currentRes.user.firstName} ${currentRes.user.lastName}`, startTime: currentRes.startTime, endTime: currentRes.endTime }
+          : null,
+        availableFrom: lastActive ? lastActive.endTime : null,
+        nextReservation: nextReservation
+          ? { userName: `${nextReservation.user.firstName} ${nextReservation.user.lastName}`, startTime: nextReservation.startTime, endTime: nextReservation.endTime, status: nextReservation.status }
+          : null,
+        confirmedNext: confirmedNext
+          ? { userName: `${confirmedNext.user.firstName} ${confirmedNext.user.lastName}`, startTime: confirmedNext.startTime, endTime: confirmedNext.endTime }
+          : null,
       };
     })
   );
@@ -78,7 +117,66 @@ exports.update = async (req, res) => {
   res.json({ success: true, data: equipment });
 };
 
-// ─── Toggle maintenance mode ───────────────────────────────────────────────────
+// ─── Update tutorial video URL ───────────────────────────────────────────────
+exports.updateVideo = async (req, res) => {
+  const { videoUrl } = req.body;
+  const equipment = await prisma.equipment.update({
+    where: { id: req.params.id },
+    data: { videoUrl: videoUrl || null },
+  });
+  res.json({ success: true, data: equipment });
+};
+
+// ─── Upload equipment image ────────────────────────────────────────────────
+exports.uploadImage = async (req, res) => {
+  if (!req.file) throw new AppError('No image file provided', 400);
+  const imageUrl = `/uploads/equipment/${req.file.filename}`;
+  const equipment = await prisma.equipment.update({
+    where: { id: req.params.id },
+    data: { imageUrl },
+  });
+  res.json({ success: true, data: equipment, imageUrl });
+};
+
+exports.deleteImage = async (req, res) => {
+  const equipment = await prisma.equipment.findUnique({ where: { id: req.params.id } });
+  if (!equipment) throw new AppError('Equipment not found', 404);
+  if (equipment.imageUrl) {
+    const fs = require('fs');
+    const path = require('path');
+    const filePath = path.join(__dirname, '../../', equipment.imageUrl);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  }
+  const updated = await prisma.equipment.update({
+    where: { id: req.params.id },
+    data: { imageUrl: null },
+  });
+  res.json({ success: true, data: updated });
+};
+
+// ─── Update tutorial videos (multi) ─────────────────────────────────────
+exports.updateVideos = async (req, res) => {
+  const { videos } = req.body;
+  if (!Array.isArray(videos)) throw new AppError('videos must be an array', 400);
+  const equipment = await prisma.equipment.update({
+    where: { id: req.params.id },
+    data: { videos },
+  });
+  res.json({ success: true, data: equipment });
+};
+
+// ─── Update reference materials ────────────────────────────────────────────────
+exports.updateMaterials = async (req, res) => {
+  const { materials } = req.body;
+  if (!Array.isArray(materials)) throw new AppError('materials must be an array', 400);
+  const equipment = await prisma.equipment.update({
+    where: { id: req.params.id },
+    data: { materials },
+  });
+  res.json({ success: true, data: equipment });
+};
+
+// ─── Toggle maintenance mode ───────────────────────────────────────────────────────
 exports.toggleMaintenance = async (req, res) => {
   const { maintenanceMode, maintenanceNote } = req.body;
 

@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
-  withCredentials: true, // sends httpOnly refresh cookie
+  withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -22,7 +22,12 @@ api.interceptors.response.use(
   async (error) => {
     const original = error.config;
 
-    if (error.response?.status === 401 && !original._retry) {
+    // Skip refresh logic for the refresh endpoint itself to avoid loops
+    const isRefreshEndpoint = original.url?.includes('/auth/refresh');
+    // Only attempt refresh if the request carried an access token (authenticated request)
+    const wasAuthenticated = !!original.headers?.Authorization;
+
+    if (error.response?.status === 401 && !original._retry && !isRefreshEndpoint && wasAuthenticated) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           refreshQueue.push({ resolve, reject });
@@ -53,7 +58,7 @@ api.interceptors.response.use(
         refreshQueue.forEach(({ reject }) => reject(refreshError));
         refreshQueue = [];
         localStorage.removeItem('accessToken');
-        window.location.href = '/login';
+        window.dispatchEvent(new CustomEvent('auth:logout'));
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
