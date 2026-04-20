@@ -378,6 +378,72 @@ const LandingPublic = () => {
   const navigate = useNavigate();
   const t = T[lang];
 
+  // ── Contact form state ────────────────────────────────────────────────────
+  const [contactForm, setContactForm] = useState({
+    name: '', email: '', department: '', equipment: '', message: '',
+  });
+  const [contactLoading, setContactLoading] = useState(false);
+  const [contactSent,    setContactSent]    = useState(false);
+  const [contactError,   setContactError]   = useState('');
+  const [contactErrors,  setContactErrors]  = useState({});
+
+  const handleContactChange = (e) => {
+    const { name, value } = e.target;
+    setContactForm(prev => ({ ...prev, [name]: value }));
+    if (contactErrors[name]) setContactErrors(prev => ({ ...prev, [name]: undefined }));
+  };
+
+  const handleContactSubmit = async (e) => {
+    e.preventDefault();
+    setContactError('');
+
+    // Client-side validation
+    const errs = {};
+    if (!contactForm.name.trim())    errs.name    = lang === 'en' ? 'Name is required.' : 'Nom requis.';
+    if (!contactForm.email.trim())   errs.email   = lang === 'en' ? 'Email is required.' : 'Email requis.';
+    else if (!/\S+@\S+\.\S+/.test(contactForm.email))
+      errs.email = lang === 'en' ? 'Please enter a valid email.' : 'Email invalide.';
+    if (!contactForm.message.trim()) errs.message = lang === 'en' ? 'Please write your message.' : 'Message requis.';
+    else if (contactForm.message.trim().length < 10)
+      errs.message = lang === 'en' ? 'Message must be at least 10 characters.' : 'Message trop court.';
+
+    if (Object.keys(errs).length) { setContactErrors(errs); return; }
+
+    // Build subject from equipment/department so the backend validator is satisfied
+    const subject =
+      contactForm.equipment
+        ? (lang === 'en' ? `Enquiry about ${contactForm.equipment}` : `Demande concernant ${contactForm.equipment}`)
+        : contactForm.department
+          ? (lang === 'en' ? `General enquiry — ${contactForm.department}` : `Demande générale — ${contactForm.department}`)
+          : (lang === 'en' ? 'General enquiry' : 'Demande générale');
+
+    // Prepend department info to message body so nothing is lost
+    const fullMessage =
+      (contactForm.department ? `Department / Faculty: ${contactForm.department}\n` : '') +
+      (contactForm.equipment  ? `Equipment of Interest: ${contactForm.equipment}\n\n` : '\n') +
+      contactForm.message;
+
+    setContactLoading(true);
+    try {
+      await api.post('/contact', {
+        name:    contactForm.name.trim(),
+        email:   contactForm.email.trim(),
+        subject,
+        message: fullMessage,
+        website: '', // honeypot — always blank
+      });
+      setContactSent(true);
+      setContactForm({ name: '', email: '', department: '', equipment: '', message: '' });
+    } catch (err) {
+      setContactError(
+        err.response?.data?.message ||
+        (lang === 'en' ? 'Something went wrong. Please try again.' : 'Une erreur est survenue.')
+      );
+    } finally {
+      setContactLoading(false);
+    }
+  };
+
   const switchLang = (l) => {
     setLang(l);
     i18n.changeLanguage(l); // updates Dashboard, Navbar, BookingFlow, etc.
@@ -695,52 +761,190 @@ const LandingPublic = () => {
 
             {/* Left — Form */}
             <div style={{ background: C.white, borderRadius: 20, padding: '40px 36px', boxShadow: '0 4px 24px rgba(0,0,0,0.07)', border: `1px solid ${C.border}` }}>
-              <h3 style={{ color: C.navy, fontSize: 22, fontWeight: 800, marginBottom: 6 }}>
-                {lang === 'en' ? 'Send a Message' : 'Envoyer un message'}
-              </h3>
-              <p style={{ color: C.muted, fontSize: 14, marginBottom: 28 }}>
-                {lang === 'en' ? 'Fill in the form below and we will get back to you within 24 hours.' : 'Remplissez le formulaire et nous vous répondrons sous 24 heures.'}
-              </p>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-                {[{label: lang === 'en' ? 'Full Name *' : 'Nom complet *', ph: 'John Doe'}, {label: 'Email *', ph: 'you@university.edu'}].map((f, i) => (
-                  <div key={i}>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: C.navy, marginBottom: 6, letterSpacing: 0.5 }}>{f.label}</label>
-                    <input placeholder={f.ph} style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: `1.5px solid ${C.border}`, fontSize: 14, color: C.text, background: '#fafafa', outline: 'none', boxSizing: 'border-box' }} />
+              {/* ── Success state ── */}
+              {contactSent ? (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  style={{ textAlign: 'center', padding: '32px 0' }}
+                >
+                  <div style={{ fontSize: 52, marginBottom: 16 }}>✅</div>
+                  <h3 style={{ color: C.navy, fontWeight: 800, fontSize: 22, marginBottom: 8 }}>
+                    {lang === 'en' ? 'Message Sent!' : 'Message envoyé !'}
+                  </h3>
+                  <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7, marginBottom: 8 }}>
+                    {lang === 'en'
+                      ? 'Thank you for reaching out. We will get back to you within 24 hours.'
+                      : 'Merci de nous avoir contactés. Nous vous répondrons sous 24 heures.'}
+                  </p>
+                  <p style={{ color: C.muted, fontSize: 13 }}>
+                    {lang === 'en' ? 'A confirmation email has been sent to' : 'Un email de confirmation a été envoyé à'}{' '}
+                    <strong style={{ color: C.navy }}>{contactForm.email || 'your inbox'}</strong>.
+                  </p>
+                  <button
+                    onClick={() => setContactSent(false)}
+                    style={{
+                      marginTop: 24, padding: '10px 24px', borderRadius: 24, border: 'none',
+                      cursor: 'pointer', background: C.teal, color: C.white,
+                      fontWeight: 700, fontSize: 13,
+                    }}
+                  >
+                    {lang === 'en' ? 'Send another message' : 'Envoyer un autre message'}
+                  </button>
+                </motion.div>
+              ) : (
+                /* ── Form ── */
+                <form onSubmit={handleContactSubmit} noValidate>
+                  {/* Hidden honeypot — always blank for real users */}
+                  <input type="text" name="website" tabIndex={-1} autoComplete="off" style={{ display: 'none' }} />
+
+                  <h3 style={{ color: C.navy, fontSize: 22, fontWeight: 800, marginBottom: 6 }}>
+                    {lang === 'en' ? 'Send a Message' : 'Envoyer un message'}
+                  </h3>
+                  <p style={{ color: C.muted, fontSize: 14, marginBottom: 28 }}>
+                    {lang === 'en' ? 'Fill in the form below and we will get back to you within 24 hours.' : 'Remplissez le formulaire et nous vous répondrons sous 24 heures.'}
+                  </p>
+
+                  {/* Name + Email */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: C.navy, marginBottom: 6, letterSpacing: 0.5 }}>
+                        {lang === 'en' ? 'Full Name *' : 'Nom complet *'}
+                      </label>
+                      <input
+                        name="name"
+                        value={contactForm.name}
+                        onChange={handleContactChange}
+                        placeholder="John Doe"
+                        maxLength={100}
+                        style={{
+                          width: '100%', padding: '12px 14px', borderRadius: 10,
+                          border: `1.5px solid ${contactErrors.name ? '#e74c3c' : C.border}`,
+                          fontSize: 14, color: C.text, background: '#fafafa',
+                          outline: 'none', boxSizing: 'border-box',
+                        }}
+                      />
+                      {contactErrors.name && <p style={{ margin: '4px 0 0', fontSize: 11, color: '#e74c3c' }}>{contactErrors.name}</p>}
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: C.navy, marginBottom: 6, letterSpacing: 0.5 }}>Email *</label>
+                      <input
+                        name="email"
+                        type="email"
+                        value={contactForm.email}
+                        onChange={handleContactChange}
+                        placeholder="you@university.edu"
+                        maxLength={254}
+                        style={{
+                          width: '100%', padding: '12px 14px', borderRadius: 10,
+                          border: `1.5px solid ${contactErrors.email ? '#e74c3c' : C.border}`,
+                          fontSize: 14, color: C.text, background: '#fafafa',
+                          outline: 'none', boxSizing: 'border-box',
+                        }}
+                      />
+                      {contactErrors.email && <p style={{ margin: '4px 0 0', fontSize: 11, color: '#e74c3c' }}>{contactErrors.email}</p>}
+                    </div>
                   </div>
-                ))}
-              </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: C.navy, marginBottom: 6, letterSpacing: 0.5 }}>{lang === 'en' ? 'Department / Faculty' : 'Département'}</label>
-                  <input placeholder={lang === 'en' ? 'e.g. Chemistry' : 'ex. Chimie'} style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: `1.5px solid ${C.border}`, fontSize: 14, color: C.text, background: '#fafafa', outline: 'none', boxSizing: 'border-box' }} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: C.navy, marginBottom: 6, letterSpacing: 0.5 }}>{lang === 'en' ? 'Equipment of Interest' : 'Équipement'}</label>
-                  <select style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: `1.5px solid ${C.border}`, fontSize: 14, color: C.text, background: '#fafafa', outline: 'none', boxSizing: 'border-box' }}>
-                    <option value="">{lang === 'en' ? 'Select equipment' : 'Choisir équipement'}</option>
-                    {['XRD','FTIR','CHNS-O','XRF','SEM','TGA','GC-MS','TEM','BET','DSC'].map(eq => (
-                      <option key={eq} value={eq}>{eq}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+                  {/* Department + Equipment */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: C.navy, marginBottom: 6, letterSpacing: 0.5 }}>
+                        {lang === 'en' ? 'Department / Faculty' : 'Département'}
+                      </label>
+                      <input
+                        name="department"
+                        value={contactForm.department}
+                        onChange={handleContactChange}
+                        placeholder={lang === 'en' ? 'e.g. Chemistry' : 'ex. Chimie'}
+                        style={{
+                          width: '100%', padding: '12px 14px', borderRadius: 10,
+                          border: `1.5px solid ${C.border}`,
+                          fontSize: 14, color: C.text, background: '#fafafa',
+                          outline: 'none', boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: C.navy, marginBottom: 6, letterSpacing: 0.5 }}>
+                        {lang === 'en' ? 'Equipment of Interest' : 'Équipement'}
+                      </label>
+                      <select
+                        name="equipment"
+                        value={contactForm.equipment}
+                        onChange={handleContactChange}
+                        style={{
+                          width: '100%', padding: '12px 14px', borderRadius: 10,
+                          border: `1.5px solid ${C.border}`,
+                          fontSize: 14, color: C.text, background: '#fafafa',
+                          outline: 'none', boxSizing: 'border-box',
+                        }}
+                      >
+                        <option value="">{lang === 'en' ? 'Select equipment' : 'Choisir équipement'}</option>
+                        {['XRD','FTIR','CHNS-O','XRF','SEM','TGA','GC-MS','TEM','BET','DSC'].map(eq => (
+                          <option key={eq} value={eq}>{eq}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
 
-              <div style={{ marginBottom: 24 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: C.navy, marginBottom: 6, letterSpacing: 0.5 }}>{lang === 'en' ? 'Message / Experiment Details *' : 'Message / Détails *'}</label>
-                <textarea rows={5} placeholder={lang === 'en' ? 'Describe your experiment, research goals, and any specific requirements...' : 'Décrivez votre expérience, vos objectifs de recherche...'}
-                  style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: `1.5px solid ${C.border}`, fontSize: 14, color: C.text, background: '#fafafa', outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }} />
-              </div>
+                  {/* Message */}
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: C.navy, marginBottom: 6, letterSpacing: 0.5 }}>
+                      {lang === 'en' ? 'Message / Experiment Details *' : 'Message / Détails *'}
+                    </label>
+                    <textarea
+                      name="message"
+                      value={contactForm.message}
+                      onChange={handleContactChange}
+                      rows={5}
+                      maxLength={5000}
+                      placeholder={lang === 'en' ? 'Describe your experiment, research goals, and any specific requirements...' : 'Décrivez votre expérience, vos objectifs de recherche...'}
+                      style={{
+                        width: '100%', padding: '12px 14px', borderRadius: 10,
+                        border: `1.5px solid ${contactErrors.message ? '#e74c3c' : C.border}`,
+                        fontSize: 14, color: C.text, background: '#fafafa',
+                        outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit',
+                      }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
+                      {contactErrors.message
+                        ? <p style={{ margin: 0, fontSize: 11, color: '#e74c3c' }}>{contactErrors.message}</p>
+                        : <span />}
+                      <span style={{ fontSize: 11, color: C.muted }}>{contactForm.message.length}/5000</span>
+                    </div>
+                  </div>
 
-              <button style={{
-                width: '100%', padding: '14px', borderRadius: 12, border: 'none', cursor: 'pointer',
-                background: `linear-gradient(135deg, ${C.teal}, #007b82)`, color: C.white,
-                fontWeight: 800, fontSize: 15, letterSpacing: 0.3,
-                boxShadow: '0 4px 16px rgba(0,181,189,0.3)',
-              }}>
-                {lang === 'en' ? 'Send Message →' : 'Envoyer le message →'}
-              </button>
+                  {/* Server error */}
+                  {contactError && (
+                    <div style={{
+                      background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10,
+                      padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#e74c3c',
+                    }}>
+                      ⚠️ {contactError}
+                    </div>
+                  )}
+
+                  {/* Submit */}
+                  <button
+                    type="submit"
+                    disabled={contactLoading}
+                    style={{
+                      width: '100%', padding: '14px', borderRadius: 12, border: 'none',
+                      cursor: contactLoading ? 'not-allowed' : 'pointer',
+                      background: contactLoading ? '#aaa' : `linear-gradient(135deg, ${C.teal}, #007b82)`,
+                      color: C.white, fontWeight: 800, fontSize: 15, letterSpacing: 0.3,
+                      boxShadow: contactLoading ? 'none' : '0 4px 16px rgba(0,181,189,0.3)',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    {contactLoading
+                      ? (lang === 'en' ? 'Sending…' : 'Envoi en cours…')
+                      : (lang === 'en' ? 'Send Message →' : 'Envoyer le message →')}
+                  </button>
+                </form>
+              )}
             </div>
 
             {/* Right — Info sidebar */}
