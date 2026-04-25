@@ -1,0 +1,44 @@
+# Fly.io deployment config — free tier (shared-cpu-1x, 256MB RAM)
+# Deploy with: flyctl deploy
+# Docs: https://fly.io/docs/reference/configuration/
+
+app = "lab1708-reservation"
+primary_region = "iad"          # Washington DC — closest to most users
+                                # Other options: lhr (London), cdg (Paris),
+                                #               sin (Singapore), syd (Sydney)
+
+[build]
+  # Uses ./backend/Dockerfile automatically
+  # Change to "." if deploying from root
+  dockerfile = "backend/Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT     = "8080"
+
+# HTTP service — Fly's proxy routes port 80/443 → your app's port 8080
+[[services]]
+  internal_port = 8080
+  protocol      = "tcp"
+
+  [[services.ports]]
+    handlers = ["http"]
+    port     = 80
+
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port     = 443
+
+  # Health check — Fly restarts the container if /health stops responding
+  [[services.http_checks]]
+    interval      = 30000   # every 30 seconds
+    timeout       = 5000
+    grace_period  = "10s"
+    method        = "get"
+    path          = "/health"
+    protocol      = "http"
+
+# Free tier machine size
+# shared-cpu-1x = 1 shared vCPU, 256MB RAM — free up to 3 machines
+[[vm]]
+  size = "shared-cpu-1x"
