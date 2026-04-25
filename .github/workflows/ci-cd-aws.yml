@@ -1,0 +1,493 @@
+# ============================================================
+# CI/CD Pipeline → AWS Deployment
+# ============================================================
+# WHAT THIS FILE DOES (in order):
+#
+#  CI (Continuous Integration) — runs on EVERY push and PR
+#  ├── Job 1: Semgrep    — scans source code for security bugs
+#  ├── Job 2: CodeQL     — deep vulnerability analysis (GitHub)
+#  ├── Job 3: Trivy FS   — scans dependencies for known CVEs
+#  └── Job 4: Jest Tests — runs backend unit/integration tests
+#
+#  CD (Continuous Delivery) — runs only on push to main
+#  ├── Job 5: Docker Build — builds backend + frontend images
+#  │          Trivy Image  — scans built images for CVEs
+#  │          Docker Push  — pushes tagged images to Docker Hub
+#  └── Job 6: AWS Deploy  — choose ONE option:
+#        Option A (PaaS): Elastic Beanstalk  ← ACTIVE BY DEFAULT
+#        Option B (IaaS): EC2 via SSM        ← commented out
+#
+# ── HOW TO SWITCH BETWEEN PaaS AND IaaS ─────────────────────
+#  PaaS (Elastic Beanstalk) — active right now:
+#    deploy-eb block below is UNCOMMENTED
+#    deploy-ec2 block below is COMMENTED OUT
+#
+#  IaaS (EC2 + VPC + ALB) — to activate:
+#    1. Comment out the deploy-eb block (add # to each line)
+#    2. Uncomment the deploy-ec2 block (remove # from each line)
+#
+# ── SECRETS REQUIRED ─────────────────────────────────────────
+#  Common (both EB and EC2):
+#    DOCKERHUB_USERNAME       Your Docker Hub username
+#    DOCKERHUB_TOKEN          Docker Hub access token
+#    AWS_ACCESS_KEY_ID        IAM user programmatic key
+#    AWS_SECRET_ACCESS_KEY    IAM user secret
+#    AWS_REGION               e.g. us-east-1
+#    VITE_API_URL             e.g. http://your-eb-url.elasticbeanstalk.com/api
+#    VITE_SOCKET_URL          e.g. http://your-eb-url.elasticbeanstalk.com
+#
+#  Elastic Beanstalk only:
+#    EB_APPLICATION_NAME      e.g. lab1708-reservation
+#    EB_ENVIRONMENT_NAME      e.g. lab1708-env
+#
+#  EC2 only:
+#    EC2_INSTANCE_IDS         e.g. i-0abc123def456,i-0def456abc123
+#                             (comma-separated, one per AZ)
+# ============================================================
+
+name: CI/CD → AWS
+
+on:
+  push:
+    branches: [main]          # full pipeline: CI + CD + deploy
+  pull_request:
+    branches: [main]          # CI only (deploy job skipped on PRs)
+
+env:
+  BACKEND_IMAGE:  ${{ secrets.DOCKERHUB_USERNAME }}/lab1708-backend
+  FRONTEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/lab1708-frontend
+  AWS_REGION:     ${{ secrets.AWS_REGION }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# JOB 1 — SEMGREP SAST
+# Static Application Security Testing.
+# Scans every .js and .jsx file for security anti-patterns before
+# any code runs anywhere. Checks: OWASP Top 10, exposed secrets,
+# SQL injection patterns, React XSS vectors, Node.js misuse.
+# continue-on-error: true keeps the pipeline moving even with findings.
+# Set to false when you want to enforce zero-tolerance for security issues.
+# ─────────────────────────────────────────────────────────────────────────────
+jobs:
+  semgrep:
+    name: "🔍 Semgrep SAST"
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write    # upload SARIF to GitHub Security tab
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Semgrep security scan
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: >-
+            p/security-audit
+            p/secrets
+            p/nodejs
+            p/react
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+        continue-on-error: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# JOB 2 — CODEQL ANALYSIS
+# GitHub's semantic code analysis. Models data flow through your
+# entire codebase to find: auth bypasses, path traversal, prototype
+# pollution, command injection, and other logic-level vulnerabilities
+# that simple pattern scanning cannot find.
+# Results visible in: GitHub repo → Security → Code scanning alerts
+# ─────────────────────────────────────────────────────────────────────────────
+  codeql:
+    name: "🔬 CodeQL Analysis"
+    runs-on: ubuntu-latest
+    permissions:
+      actions:         read
+      contents:        read
+      security-events: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript
+          queries: security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:javascript
+
+# ─────────────────────────────────────────────────────────────────────────────
+# JOB 3 — TRIVY FILESYSTEM SCAN
+# Scans package-lock.json and package.json in both backend/ and frontend/
+# against the NVD CVE database. Catches vulnerable npm packages
+# (e.g. a known RCE in an Express middleware version) BEFORE they
+# are baked into a Docker image and shipped to AWS.
+# Pipeline stops here if CRITICAL or HIGH severity CVEs are found.
+# ─────────────────────────────────────────────────────────────────────────────
+  trivy-fs:
+    name: "🛡️ Trivy Filesystem Scan"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Scan source files and npm dependencies
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref:  .
+          severity:  CRITICAL,HIGH
+          exit-code: 1
+          format:    table
+
+# ─────────────────────────────────────────────────────────────────────────────
+# JOB 4 — BACKEND TESTS
+# Jest + Supertest integration tests with a mocked Prisma client.
+# No real database needed — tests run in memory.
+# What is tested:
+#   - Auth: register, login, token refresh, 401 on missing token
+#   - Reservations: past booking rejected, conflict detection (409),
+#     24-hour cancellation rule, technologist exemption from 24h rule
+# JWT_SECRET here is a dummy — real secrets are only in GitHub Secrets.
+# ─────────────────────────────────────────────────────────────────────────────
+  test:
+    name: "🧪 Backend Tests (Jest)"
+    runs-on: ubuntu-latest
+    needs: [semgrep, codeql, trivy-fs]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Run test suite
+        working-directory: backend
+        env:
+          NODE_ENV:           test
+          JWT_SECRET:         test_jwt_secret_minimum_32_chars!!
+          JWT_REFRESH_SECRET: test_refresh_secret_minimum_32_chars
+        run: npm test
+
+# ─────────────────────────────────────────────────────────────────────────────
+# JOB 5 — BUILD DOCKER IMAGES, SCAN THEM, PUSH TO DOCKER HUB
+#
+# Backend Dockerfile stages:
+#   builder     → installs all npm deps, generates Prisma client
+#   production  → prod deps only, non-root user, 180MB final image
+#
+# Frontend Dockerfile stages:
+#   builder     → npm ci + vite build (VITE_API_URL baked into JS bundle)
+#   production  → nginx:alpine serves static files only (24MB final image)
+#
+# Each image is scanned with Trivy AFTER build but BEFORE push.
+# This catches OS-level CVEs in the Alpine base image.
+#
+# Tags pushed: :latest  AND  :git-commit-sha
+# The SHA tag lets you identify exactly which commit is running on AWS.
+# ─────────────────────────────────────────────────────────────────────────────
+  build-and-push:
+    name: "🐳 Build, Scan & Push Docker Images"
+    runs-on: ubuntu-latest
+    needs: [test]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # ── BACKEND IMAGE ────────────────────────────────────────────────────────
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with:
+          context:    ./backend
+          push:       false      # hold — scan before pushing
+          load:       true
+          tags:       ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to:   type=gha,mode=max
+
+      - name: Trivy — scan backend image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+          severity:  CRITICAL,HIGH
+          exit-code: 1           # block push if critical CVE in image
+          format:    table
+
+      - name: Push backend image to Docker Hub
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push:    true
+          tags: |
+            ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+            ${{ env.BACKEND_IMAGE }}:latest
+          cache-from: type=gha
+          cache-to:   type=gha,mode=max
+
+      # ── FRONTEND IMAGE ───────────────────────────────────────────────────────
+      # VITE_API_URL and VITE_SOCKET_URL are build-time arguments.
+      # They get compiled into the JavaScript bundle — update these secrets
+      # whenever your AWS URL changes (e.g. after recreating the EB environment).
+      - name: Build frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push:    false
+          load:    true
+          tags:    ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+          build-args: |
+            VITE_API_URL=${{ secrets.VITE_API_URL }}
+            VITE_SOCKET_URL=${{ secrets.VITE_SOCKET_URL }}
+          cache-from: type=gha
+          cache-to:   type=gha,mode=max
+
+      - name: Trivy — scan frontend image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+          severity:  CRITICAL,HIGH
+          exit-code: 1
+          format:    table
+
+      - name: Push frontend image to Docker Hub
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push:    true
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+            ${{ env.FRONTEND_IMAGE }}:latest
+          build-args: |
+            VITE_API_URL=${{ secrets.VITE_API_URL }}
+            VITE_SOCKET_URL=${{ secrets.VITE_SOCKET_URL }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# JOB 6A — DEPLOY TO ELASTIC BEANSTALK (PaaS)  ← ACTIVE BY DEFAULT
+#
+# WHAT ELASTIC BEANSTALK DOES (PaaS):
+#   You provide: a zip file containing Dockerrun.aws.json
+#   EB provides: EC2 instance, OS, Docker runtime, health checks,
+#                auto scaling, load balancer, deployments, monitoring
+#
+# HOW IT WORKS STEP BY STEP:
+#   1. sed replaces the placeholder Docker Hub username in Dockerrun.aws.json
+#   2. sed pins the image tag to the exact git SHA (reproducible deploys)
+#   3. The file is zipped into deploy.zip (EB expects a zip archive)
+#   4. beanstalk-deploy action:
+#      a. Uploads deploy.zip to the S3 bucket EB manages
+#      b. Creates a new Application Version named lab1708-<SHA>
+#      c. Tells EB to deploy that version to lab1708-env
+#      d. Waits up to 120s for the environment to return to Green health
+#   5. EB EC2 instance pulls the new Docker image from Docker Hub
+#   6. Old container stops, new container starts
+#
+# PREREQUISITE SETUP (one time, done manually before first pipeline run):
+#   1. Install EB CLI: pip3 install awsebcli
+#   2. cd to project root: eb init (choose Docker, us-east-1)
+#   3. eb create lab1708-env --instance-type t3.nano --single
+#   4. Set env vars in EB Console → Configuration → Environment properties
+#   5. Run migrations: eb ssh → docker exec → prisma migrate deploy
+# ─────────────────────────────────────────────────────────────────────────────
+  deploy-eb:
+    name: "☁️ Deploy → Elastic Beanstalk (PaaS)"
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ secrets.AWS_REGION }}
+
+      - name: Inject username and pin SHA tag into Dockerrun.aws.json
+        # Dockerrun.aws.json tells EB which Docker image to pull.
+        # We replace :latest with the exact commit SHA so every
+        # deployment is 100% traceable and reproducible.
+        run: |
+          echo "Before injection:"
+          cat Dockerrun.aws.json
+
+          sed -i \
+            "s|REPLACE_WITH_YOUR_DOCKERHUB_USERNAME|${{ secrets.DOCKERHUB_USERNAME }}|g" \
+            Dockerrun.aws.json
+
+          sed -i \
+            "s|:latest|:${{ github.sha }}|g" \
+            Dockerrun.aws.json
+
+          echo "After injection:"
+          cat Dockerrun.aws.json
+
+      - name: Create deployment bundle (zip)
+        # EB requires the deployment package to be a zip file.
+        # For Docker deployments it only needs Dockerrun.aws.json.
+        run: zip deploy.zip Dockerrun.aws.json
+
+      - name: Deploy to Elastic Beanstalk
+        uses: einaregilsson/beanstalk-deploy@v22
+        with:
+          aws_access_key:       ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_key:       ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          application_name:     ${{ secrets.EB_APPLICATION_NAME }}
+          environment_name:     ${{ secrets.EB_ENVIRONMENT_NAME }}
+          region:               ${{ secrets.AWS_REGION }}
+          version_label:        "lab1708-${{ github.sha }}"   # unique per commit
+          deployment_package:   deploy.zip
+          wait_for_environment_recovery: 120   # seconds to wait for Green health
+
+      - name: Print deployment summary
+        run: |
+          echo "## ✅ Deployed to Elastic Beanstalk (PaaS)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit SHA | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| EB Application | ${{ secrets.EB_APPLICATION_NAME }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| EB Environment | ${{ secrets.EB_ENVIRONMENT_NAME }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend image | \`${{ env.BACKEND_IMAGE }}:${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deployment type | PaaS — AWS manages the infrastructure |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> ⚠️ Remember to **terminate the environment** after learning to avoid charges:" >> $GITHUB_STEP_SUMMARY
+          echo "> \`eb terminate ${{ secrets.EB_ENVIRONMENT_NAME }}\`" >> $GITHUB_STEP_SUMMARY
+
+# ─────────────────────────────────────────────────────────────────────────────
+# JOB 6B — DEPLOY TO EC2 VIA SSM (IaaS)  ← COMMENTED OUT
+#
+# TO ACTIVATE: comment out the entire deploy-eb block above (add # to each line)
+#              then uncomment this entire block (remove # from each line below)
+#
+# WHAT THIS JOB DOES (IaaS):
+#   You manage everything. This job only handles delivery of the new image.
+#   The EC2 instances, VPC, subnets, ALB, and Auto Scaling Group are all
+#   set up manually beforehand (see the AWS DevOps learning guide).
+#
+# HOW SSM (Systems Manager) WORKS:
+#   Instead of SSH (which requires open port 22), SSM lets you run
+#   shell commands on EC2 instances securely through the AWS API.
+#   The EC2 instance needs:
+#     - IAM role with AmazonSSMManagedInstanceCore policy
+#     - SSM agent running (Amazon Linux 2023 has it pre-installed)
+#
+# DEPLOYMENT SEQUENCE PER INSTANCE:
+#   1. docker pull  → downloads the new image from Docker Hub
+#   2. docker stop  → gracefully stops the running container
+#   3. docker rm    → removes the stopped container
+#   4. docker run   → starts a new container from the new image
+#      --env-file /home/ec2-user/.env → reads secrets from the instance
+#      --restart always               → auto-restart on crash or reboot
+#
+# ELASTICITY NOTE:
+#   This job targets SPECIFIC instance IDs (EC2_INSTANCE_IDS secret).
+#   If your Auto Scaling Group adds new instances, they use the startup
+#   script (user data) which always pulls :latest from Docker Hub.
+#   So new ASG instances automatically get the latest code on launch.
+#
+# PREREQUISITE SETUP (one time):
+#   1. Create VPC with public subnets in 2 AZs
+#   2. Launch EC2 instances with startup script (pulls image on boot)
+#   3. Create Target Group pointing to port 5000
+#   4. Create Application Load Balancer across both AZs
+#   5. Create Auto Scaling Group with the same launch template
+#   6. Copy instance IDs → add to EC2_INSTANCE_IDS GitHub secret
+# ─────────────────────────────────────────────────────────────────────────────
+#  deploy-ec2:
+#    name: "🖥️ Deploy → EC2 via SSM (IaaS)"
+#    runs-on: ubuntu-latest
+#    needs: [build-and-push]
+#    if: github.ref == 'refs/heads/main'
+#    steps:
+#      - name: Configure AWS credentials
+#        uses: aws-actions/configure-aws-credentials@v4
+#        with:
+#          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+#          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#          aws-region:            ${{ secrets.AWS_REGION }}
+#
+#      - name: Send deploy command to all EC2 instances via SSM
+#        # send-command runs the script simultaneously on all listed instances.
+#        # Each instance independently pulls the image and restarts its container.
+#        # The ALB's health checks detect any instance that fails to restart
+#        # and stops routing traffic to it automatically.
+#        run: |
+#          # Convert comma-separated IDs to space-separated for AWS CLI
+#          INSTANCE_IDS=$(echo "${{ secrets.EC2_INSTANCE_IDS }}" | tr ',' ' ')
+#
+#          COMMAND_ID=$(aws ssm send-command \
+#            --instance-ids $INSTANCE_IDS \
+#            --document-name "AWS-RunShellScript" \
+#            --parameters 'commands=[
+#              "echo \"=== Pulling new image ===\"",
+#              "docker pull ${{ secrets.DOCKERHUB_USERNAME }}/lab1708-backend:${{ github.sha }}",
+#              "echo \"=== Stopping current container ===\"",
+#              "docker stop lab1708-backend || true",
+#              "docker rm   lab1708-backend || true",
+#              "echo \"=== Starting new container ===\"",
+#              "docker run -d \
+#                --name lab1708-backend \
+#                --restart always \
+#                -p 5000:5000 \
+#                --env-file /home/ec2-user/.env \
+#                ${{ secrets.DOCKERHUB_USERNAME }}/lab1708-backend:${{ github.sha }}",
+#              "echo \"=== Verifying container is running ===\"",
+#              "docker ps | grep lab1708-backend",
+#              "sleep 5",
+#              "curl -sf http://localhost:5000/health && echo \"Health check passed\" || (echo \"Health check FAILED\" && exit 1)"
+#            ]' \
+#            --comment "Deploy ${{ github.sha }}" \
+#            --region "${{ secrets.AWS_REGION }}" \
+#            --query "Command.CommandId" \
+#            --output text)
+#
+#          echo "SSM Command ID: $COMMAND_ID"
+#
+#          # Wait for the command to complete on all instances
+#          echo "Waiting for command to complete..."
+#          aws ssm wait command-executed \
+#            --command-id "$COMMAND_ID" \
+#            --instance-id "$(echo $INSTANCE_IDS | awk '{print $1}')" \
+#            --region "${{ secrets.AWS_REGION }}"
+#
+#          echo "Deploy command completed on all instances"
+#
+#      - name: Print deployment summary
+#        run: |
+#          echo "## ✅ Deployed to EC2 (IaaS)" >> $GITHUB_STEP_SUMMARY
+#          echo "" >> $GITHUB_STEP_SUMMARY
+#          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+#          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+#          echo "| Commit SHA | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+#          echo "| Instances updated | ${{ secrets.EC2_INSTANCE_IDS }} |" >> $GITHUB_STEP_SUMMARY
+#          echo "| Image deployed | \`${{ env.BACKEND_IMAGE }}:${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+#          echo "| Deployment type | IaaS — you manage the infrastructure |" >> $GITHUB_STEP_SUMMARY
+#          echo "" >> $GITHUB_STEP_SUMMARY
+#          echo "> ⚠️ Remember to **terminate all resources** after learning." >> $GITHUB_STEP_SUMMARY
+#          echo "> EC2 instances, ALB, and Auto Scaling Group all incur charges." >> $GITHUB_STEP_SUMMARY

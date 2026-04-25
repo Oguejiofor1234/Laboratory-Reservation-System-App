@@ -1,10 +1,12 @@
-name: CI/CD Pipeline — Lab 1708
+# ============================================================
+# THIS FILE IS DISABLED (manual trigger only).
+# Use ci-cd-render.yml  → deploy to Render
+# Use ci-cd-aws.yml     → deploy to AWS (EB or EC2)
+# ============================================================
+name: CI/CD Pipeline — Lab 1708 (ARCHIVED)
 
 on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main]
+  workflow_dispatch:   # only runs when you click "Run workflow" in GitHub Actions UI
 
 env:
   BACKEND_IMAGE:  ${{ secrets.DOCKERHUB_USERNAME }}/lab1708-backend
