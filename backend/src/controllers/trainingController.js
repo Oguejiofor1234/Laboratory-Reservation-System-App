@@ -5,6 +5,7 @@ const {
 } = require('../services/emailService');
 const { createNotification } = require('../services/notificationService');
 const { parsePagination, paginatedResponse } = require('../utils/helpers');
+const logger = require('../utils/logger');
 
 const SESSION_INCLUDE = {
   student: { select: { id: true, firstName: true, lastName: true, email: true } },
@@ -26,7 +27,29 @@ exports.request = async (req, res) => {
     include: SESSION_INCLUDE,
   });
 
-  // Notify all technologists
+  // 1. ── Notify student: in-app notification + email confirmation ──
+  await createNotification({
+    userId: session.studentId,
+    title: 'Training Request Sent',
+    message: `Your training request for ${session.equipment.name} has been submitted and is awaiting supervisor approval.`,
+    type: 'TRAINING_REQUEST',
+  });
+
+  // Email confirmation to student
+  try {
+    const { sendStudentTrainingReceived } = require('../services/emailService');
+    const supervisor = session.equipment.personInChargeId
+      ? await prisma.user.findUnique({
+          where: { id: session.equipment.personInChargeId },
+          select: { firstName: true, lastName: true },
+        })
+      : null;
+    sendStudentTrainingReceived(session.student, session, session.equipment, supervisor);
+  } catch (err) {
+    logger.error(`Training confirmation email failed: ${err.message}`);
+  }
+
+  // 2. ── Notify supervisors: email + in-app notification ──
   const technologists = await prisma.user.findMany({
     where: { role: { in: ['TECHNOLOGIST', 'ADMIN'] } },
     select: { id: true, email: true },
@@ -36,7 +59,7 @@ exports.request = async (req, res) => {
     await sendTrainingRequest(tech.email, session.student, session, session.equipment);
     await createNotification({
       userId: tech.id,
-      title: 'Training Request',
+      title: 'New Training Request',
       message: `${session.student.firstName} ${session.student.lastName} requested training on ${session.equipment.name}`,
       type: 'TRAINING_REQUEST',
     });

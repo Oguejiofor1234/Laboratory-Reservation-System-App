@@ -128,9 +128,9 @@ exports.studentDashboard = async (req, res) => {
   const now = new Date();
 
   const [upcoming, history, pendingCount] = await Promise.all([
-    // Upcoming reservations (pending + confirmed)
+    // Upcoming reservations (pending + confirmed + rescheduled)
     prisma.reservation.findMany({
-      where: { userId, status: { in: ['PENDING', 'CONFIRMED'] }, startTime: { gte: now } },
+      where: { userId, status: { in: ['PENDING', 'CONFIRMED', 'RESCHEDULED'] }, startTime: { gte: now } },
       include: {
         equipment: true,
         personInCharge: { select: { id: true, firstName: true, lastName: true } },
@@ -190,9 +190,19 @@ exports.techDashboard = async (req, res) => {
     totalReservationsWeek,
     recentActivity,
   ] = await Promise.all([
-    // Pending reservations assigned to this technologist
+    // Pending/confirmed/rescheduled reservations:
+    //   1. Explicitly assigned to this supervisor
+    //   2. Equipment is supervised by them, with no explicit booking-level assignment
+    //   3. Neither the booking nor the equipment has any supervisor → visible to ALL supervisors
     prisma.reservation.findMany({
-      where: { status: 'PENDING', personInChargeId: req.user.id },
+      where: {
+        status: { in: ['PENDING', 'CONFIRMED', 'RESCHEDULED'] },
+        OR: [
+          { personInChargeId: req.user.id },
+          { personInChargeId: null, equipment: { personInChargeId: req.user.id } },
+          { personInChargeId: null, equipment: { personInChargeId: null } },
+        ],
+      },
       include: {
         user: { select: { firstName: true, lastName: true, email: true } },
         equipment: true,

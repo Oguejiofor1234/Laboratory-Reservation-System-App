@@ -4,6 +4,14 @@ const logger = require('../utils/logger');
 const FROM = process.env.EMAIL_FROM || '"Lab 1780" <noreply@lab1780.edu>';
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
+// All times in emails are displayed in Eastern Canadian Time (America/Toronto)
+const formatET = (date) =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Toronto',
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short',
+  }).format(new Date(date));
+
 const baseTemplate = (title, body) => `
 <!DOCTYPE html>
 <html>
@@ -21,10 +29,11 @@ const baseTemplate = (title, body) => `
     .body h2 { color: #e6edf3; font-size: 16px; margin-top: 0; }
     .body p { color: #8b949e; line-height: 1.6; }
     .detail-box { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 16px; margin: 16px 0; }
-    .detail-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #21262d; }
+    .detail-row { display: flex; justify-content: space-between; align-items: flex-start;
+      padding: 6px 0; border-bottom: 1px solid #21262d; gap: 16px; }
     .detail-row:last-child { border-bottom: none; }
-    .detail-label { color: #8b949e; font-size: 12px; }
-    .detail-value { color: #e6edf3; font-size: 12px; font-weight: bold; }
+    .detail-label { color: #8b949e; font-size: 12px; white-space: nowrap; flex-shrink: 0; min-width: 130px; }
+    .detail-value { color: #e6edf3; font-size: 12px; font-weight: bold; text-align: right; word-break: break-word; }
     .btn { display: inline-block; background: #00bfa5; color: #0d1117; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 14px; margin: 16px 0; letter-spacing: 1px; }
     .status-confirmed { color: #3fb950; }
     .status-rejected { color: #f85149; }
@@ -94,7 +103,7 @@ const sendBookingRequest = async (user, reservation, equipment, personInCharge =
   const picName = personInCharge ? `${personInCharge.firstName} ${personInCharge.lastName}` : 'the assigned supervisor';
   await send(user.email, `Booking Request Received — ${equipment.name}`, baseTemplate(
     'Booking Request',
-    `<h2>Booking Request Received</h2>
+    `<h2>Hello, ${user.firstName}!</h2>
      <p>Your reservation request for <strong style="color:#00bfa5">${equipment.name}</strong> has been submitted and is pending approval from <strong style="color:#00bfa5">${picName}</strong>.</p>
      ${details}
      <p>You will be notified by email once your request is reviewed.</p>
@@ -107,8 +116,8 @@ const sendBookingConfirmed = async (user, reservation, equipment) => {
   const details = buildReservationDetails(reservation, equipment);
   await send(user.email, `Booking Confirmed ✓ — ${equipment.name}`, baseTemplate(
     'Booking Confirmed',
-    `<h2>Booking <span class="status-confirmed">Confirmed</span></h2>
-     <p>Your reservation for <strong style="color:#00bfa5">${equipment.name}</strong> has been confirmed.</p>
+    `<h2>Great news, ${user.firstName}! 🎉</h2>
+     <p>Your reservation for <strong style="color:#00bfa5">${equipment.name}</strong> has been <span class="status-confirmed">confirmed</span> by your supervisor.</p>
      ${details}
      <a href="${CLIENT_URL}/dashboard" class="btn">VIEW DASHBOARD →</a>`
   ));
@@ -118,10 +127,11 @@ const sendBookingRejected = async (user, reservation, equipment, reason) => {
   const details = buildReservationDetails(reservation, equipment);
   await send(user.email, `Booking Rejected — ${equipment.name}`, baseTemplate(
     'Booking Rejected',
-    `<h2>Booking <span class="status-rejected">Rejected</span></h2>
-     <p>Your reservation for <strong style="color:#00bfa5">${equipment.name}</strong> was rejected.</p>
+    `<h2>Hello, ${user.firstName}.</h2>
+     <p>Unfortunately, your reservation for <strong style="color:#00bfa5">${equipment.name}</strong> was <span class="status-rejected">not approved</span> this time.</p>
      ${details}
-     ${reason ? `<div class="detail-box"><p style="color:#f85149;margin:0">Reason: ${reason}</p></div>` : ''}
+     ${reason ? `<div class="detail-box"><p style="color:#f85149;margin:0"><strong>Reason:</strong> ${reason}</p></div>` : ''}
+     <p style="color:#8b949e;font-size:13px;">You are welcome to submit a new request at a different time.</p>
      <a href="${CLIENT_URL}/book" class="btn">BOOK AGAIN →</a>`
   ));
 };
@@ -130,10 +140,10 @@ const sendBookingCancelled = async (user, reservation, equipment, reason) => {
   const details = buildReservationDetails(reservation, equipment);
   await send(user.email, `Booking Cancelled — ${equipment.name}`, baseTemplate(
     'Booking Cancelled',
-    `<h2>Booking Cancelled</h2>
+    `<h2>Hello, ${user.firstName}.</h2>
      <p>Your reservation for <strong style="color:#00bfa5">${equipment.name}</strong> has been cancelled.</p>
      ${details}
-     ${reason ? `<div class="detail-box"><p style="color:#8b949e;margin:0">Reason: ${reason}</p></div>` : ''}
+     ${reason ? `<div class="detail-box"><p style="color:#8b949e;margin:0"><strong>Reason:</strong> ${reason}</p></div>` : ''}
      <a href="${CLIENT_URL}/book" class="btn">MAKE NEW BOOKING →</a>`
   ));
 };
@@ -149,16 +159,37 @@ const sendTechNewBooking = async (techEmail, student, reservation, equipment) =>
   ));
 };
 
+// Email to student confirming their training request was received
+const sendStudentTrainingReceived = async (student, session, equipment, supervisor = null) => {
+  const supervisorName = supervisor ? `${supervisor.firstName} ${supervisor.lastName}` : 'the assigned supervisor';
+  await send(student.email, `Training Request Received — ${equipment.name}`, baseTemplate(
+    'Training Request',
+    `<h2>Hello, ${student.firstName}!</h2>
+     <p>Your training request for <strong style="color:#00bfa5">${equipment.name}</strong> has been submitted and is awaiting approval from <strong style="color:#00bfa5">${supervisorName}</strong>.</p>
+     <table width="100%" cellpadding="0" cellspacing="0" style="background:#0d1117;border:1px solid #30363d;border-radius:6px;margin:16px 0;">
+       <tbody>
+         ${detailRow('EQUIPMENT', equipment.name)}
+         ${detailRow('REQUESTED SLOT', formatET(session.scheduledAt))}
+         ${detailRow('STATUS', 'PENDING APPROVAL', '#d29922')}
+       </tbody>
+     </table>
+     <p>You will be notified by email once your request is reviewed.</p>
+     <a href="${CLIENT_URL}/dashboard" class="btn">VIEW MY DASHBOARD →</a>`
+  ));
+};
+
 const sendTrainingRequest = async (techEmail, student, session, equipment) => {
   await send(techEmail, `Training Request — ${equipment.name}`, baseTemplate(
     'Training Request',
     `<h2>Training Session Request</h2>
      <p><strong style="color:#00bfa5">${student.firstName} ${student.lastName}</strong> has requested training on <strong>${equipment.name}</strong>.</p>
-     <div class="detail-box">
-       <div class="detail-row"><span class="detail-label">EQUIPMENT</span><span class="detail-value">${equipment.name}</span></div>
-       <div class="detail-row"><span class="detail-label">STUDENT</span><span class="detail-value">${student.firstName} ${student.lastName}</span></div>
-       <div class="detail-row"><span class="detail-label">REQUESTED SLOT</span><span class="detail-value">${new Date(session.scheduledAt).toLocaleString()}</span></div>
-     </div>
+     <table width="100%" cellpadding="0" cellspacing="0" style="background:#0d1117;border:1px solid #30363d;border-radius:6px;margin:16px 0;">
+       <tbody>
+         ${detailRow('EQUIPMENT', equipment.name)}
+         ${detailRow('STUDENT', `${student.firstName} ${student.lastName}`)}
+         ${detailRow('REQUESTED SLOT', formatET(session.scheduledAt))}
+       </tbody>
+     </table>
      <a href="${CLIENT_URL}/dashboard" class="btn">REVIEW REQUEST →</a>`
   ));
 };
@@ -166,12 +197,15 @@ const sendTrainingRequest = async (techEmail, student, session, equipment) => {
 const sendTrainingConfirmed = async (student, session, equipment) => {
   await send(student.email, `Training Confirmed — ${equipment.name}`, baseTemplate(
     'Training Confirmed',
-    `<h2>Training <span class="status-confirmed">Confirmed</span></h2>
-     <p>Your training session for <strong style="color:#00bfa5">${equipment.name}</strong> has been confirmed.</p>
-     <div class="detail-box">
-       <div class="detail-row"><span class="detail-label">EQUIPMENT</span><span class="detail-value">${equipment.name}</span></div>
-       <div class="detail-row"><span class="detail-label">DATE & TIME</span><span class="detail-value">${new Date(session.scheduledAt).toLocaleString()}</span></div>
-     </div>
+    `<h2>Great news, ${student.firstName}! 🎉</h2>
+     <p>Your training session for <strong style="color:#00bfa5">${equipment.name}</strong> has been <span class="status-confirmed">confirmed</span>.</p>
+     <table width="100%" cellpadding="0" cellspacing="0" style="background:#0d1117;border:1px solid #30363d;border-radius:6px;margin:16px 0;">
+       <tbody>
+         ${detailRow('EQUIPMENT', equipment.name)}
+         ${detailRow('DATE & TIME', formatET(session.scheduledAt), '#3fb950')}
+         ${detailRow('STATUS', 'CONFIRMED', '#3fb950')}
+       </tbody>
+     </table>
      <a href="${CLIENT_URL}/dashboard" class="btn">VIEW DASHBOARD →</a>`
   ));
 };
@@ -179,8 +213,8 @@ const sendTrainingConfirmed = async (student, session, equipment) => {
 const sendTrainingCompleted = async (student, equipment) => {
   await send(student.email, `Training Completed — ${equipment.name}`, baseTemplate(
     'Training Completed',
-    `<h2>Training <span class="status-confirmed">Completed</span> 🎓</h2>
-     <p>Congratulations! You are now certified to use <strong style="color:#00bfa5">${equipment.name}</strong>.</p>
+    `<h2>Congratulations, ${student.firstName}! 🎓</h2>
+     <p>You have successfully completed your training and are now certified to use <strong style="color:#00bfa5">${equipment.name}</strong>.</p>
      <p>You can now book the equipment directly from the reservation system.</p>
      <a href="${CLIENT_URL}/book" class="btn">BOOK EQUIPMENT →</a>`
   ));
@@ -189,16 +223,35 @@ const sendTrainingCompleted = async (student, equipment) => {
 const sendTrainingRescheduled = async (student, session, equipment, proposedAt, reason) => {
   await send(student.email, `Training Rescheduled — ${equipment.name}`, baseTemplate(
     'Training Rescheduled',
-    `<h2>Training <span style="color:#d29922">Rescheduled</span> ⏰</h2>
+    `<h2>Hello, ${student.firstName}.</h2>
      <p>Your supervisor has proposed a <strong>new date and time</strong> for your training on <strong style="color:#00bfa5">${equipment.name}</strong>.</p>
+     <table width="100%" cellpadding="0" cellspacing="0" style="background:#0d1117;border:1px solid #30363d;border-radius:6px;margin:16px 0;">
+       <tbody>
+         ${detailRow('EQUIPMENT', equipment.name)}
+         ${detailRow('ORIGINAL DATE', formatET(session.scheduledAt))}
+         ${detailRow('NEW PROPOSED DATE', formatET(proposedAt), '#d29922')}
+         ${reason ? detailRow('REASON', reason) : ''}
+       </tbody>
+     </table>
+     <p style="color:#8b949e">Please log in to your dashboard to <strong>Accept</strong> or <strong>Reject</strong> this proposed time.</p>
+     <a href="${CLIENT_URL}/dashboard" class="btn">RESPOND NOW →</a>`
+  ));
+};
+
+const sendBookingRescheduled = async (user, reservation, equipment, proposedStart, proposedEnd, reason) => {
+  await send(user.email, `Booking Rescheduled — ${equipment.name}`, baseTemplate(
+    'Booking Rescheduled',
+    `<h2>Booking <span style="color:#d29922">Rescheduled</span> ⏰</h2>
+     <p>Your supervisor has proposed a <strong>new date and time</strong> for your booking of <strong style="color:#00bfa5">${equipment.name}</strong>.</p>
      <div class="detail-box">
        <div class="detail-row"><span class="detail-label">EQUIPMENT</span><span class="detail-value">${equipment.name}</span></div>
-       <div class="detail-row"><span class="detail-label">ORIGINAL DATE</span><span class="detail-value">${new Date(session.scheduledAt).toLocaleString()}</span></div>
-       <div class="detail-row"><span class="detail-label">NEW PROPOSED DATE</span><span class="detail-value" style="color:#d29922;font-weight:900">${new Date(proposedAt).toLocaleString()}</span></div>
+       <div class="detail-row"><span class="detail-label">NEW START</span><span class="detail-value" style="color:#d29922;font-weight:900">${formatET(proposedStart)}</span></div>
+       <div class="detail-row"><span class="detail-label">NEW END</span><span class="detail-value" style="color:#d29922;font-weight:900">${formatET(proposedEnd)}</span></div>
        ${reason ? `<div class="detail-row"><span class="detail-label">REASON</span><span class="detail-value">${reason}</span></div>` : ''}
      </div>
      <p style="color:#8b949e">Please log in to your dashboard to <strong>Accept</strong> or <strong>Reject</strong> this proposed time.</p>
-     <a href="${CLIENT_URL}/dashboard" class="btn">RESPOND NOW →</a>`
+     <a href="${CLIENT_URL}/dashboard" class="btn">RESPOND NOW →</a>
+     <p style="font-size:11px;color:#484f58;">If you do not respond, your original booking will remain pending.</p>`
   ));
 };
 
@@ -206,8 +259,8 @@ const sendReminder = async (user, reservation, equipment) => {
   const details = buildReservationDetails(reservation, equipment);
   await send(user.email, `Reminder: Booking Tomorrow — ${equipment.name}`, baseTemplate(
     '24-Hour Reminder',
-    `<h2>Booking Reminder</h2>
-     <p>This is a reminder that you have a confirmed booking for <strong style="color:#00bfa5">${equipment.name}</strong> in approximately 24 hours.</p>
+    `<h2>Reminder, ${user.firstName}! ⏰</h2>
+     <p>You have a confirmed booking for <strong style="color:#00bfa5">${equipment.name}</strong> coming up in approximately 24 hours.</p>
      ${details}
      <a href="${CLIENT_URL}/dashboard" class="btn">VIEW DASHBOARD →</a>`
   ));
@@ -217,7 +270,7 @@ const sendWaitlistNotification = async (user, equipment, date) => {
   await send(user.email, `Slot Available — ${equipment.name}`, baseTemplate(
     'Waitlist — Slot Available',
     `<h2>A Slot Is Now Available</h2>
-     <p>Good news! A reservation slot for <strong style="color:#00bfa5">${equipment.name}</strong> on <strong>${new Date(date).toLocaleDateString()}</strong> has opened up.</p>
+     <p>Good news! A reservation slot for <strong style="color:#00bfa5">${equipment.name}</strong> on <strong>${formatET(date)}</strong> has opened up.</p>
      <p>Book now before it's taken!</p>
      <a href="${CLIENT_URL}/book" class="btn">BOOK NOW →</a>`
   ));
@@ -225,6 +278,7 @@ const sendWaitlistNotification = async (user, equipment, date) => {
 
 // ─── Helper ─────────────────────────────────────────────────────────────────────────────
 
+// ─── Helper — use ET for all reservation time display ───────────────────────────
 const detailRow = (label, value, color = '#e6edf3') =>
   `<tr>
     <td style="padding:8px 12px;font-size:12px;color:#8b949e;font-family:'Courier New',monospace;border-bottom:1px solid #21262d;white-space:nowrap;width:40%;">${label}</td>
@@ -235,9 +289,9 @@ const buildReservationDetails = (reservation, equipment, personInCharge = null) 
   `<table width="100%" cellpadding="0" cellspacing="0" style="background:#0d1117;border:1px solid #30363d;border-radius:6px;margin:16px 0;">
     <tbody>
       ${detailRow('EQUIPMENT', equipment.name)}
-      ${detailRow('START', new Date(reservation.startTime).toLocaleString())}
-      ${detailRow('END', new Date(reservation.endTime).toLocaleString())}
-      ${personInCharge ? detailRow('PERSON IN CHARGE', `${personInCharge.firstName} ${personInCharge.lastName}`, '#00bfa5') : ''}
+      ${detailRow('START', formatET(reservation.startTime))}
+      ${detailRow('FINISH', formatET(reservation.endTime))}
+      ${personInCharge ? detailRow('SUPERVISOR', `${personInCharge.firstName} ${personInCharge.lastName}`, '#00bfa5') : ''}
       ${detailRow('STATUS', reservation.status, reservation.status === 'CONFIRMED' ? '#3fb950' : reservation.status === 'REJECTED' ? '#f85149' : '#d29922')}
       ${reservation.experimentDescription ? detailRow('EXPERIMENT', reservation.experimentDescription) : ''}
       ${reservation.notes ? detailRow('NOTES', reservation.notes) : ''}
@@ -384,10 +438,12 @@ const sendContactAutoReply = async ({ name, email, message, equipment, departmen
 module.exports = {
   sendEmailVerification,
   sendPasswordReset,
+  sendStudentTrainingReceived,
   sendBookingRequest,
   sendBookingConfirmed,
   sendBookingRejected,
   sendBookingCancelled,
+  sendBookingRescheduled,
   sendTechNewBooking,
   sendTrainingRequest,
   sendTrainingConfirmed,
@@ -395,6 +451,6 @@ module.exports = {
   sendTrainingRescheduled,
   sendReminder,
   sendWaitlistNotification,
-  sendContactNotification,
-  sendContactAutoReply,
+  sendContactNotification,   // ← was missing — sends contact messages to miracle2cool247@gmail.com
+  sendContactAutoReply,      // ← sends automatic acknowledgement to the enquirer
 };

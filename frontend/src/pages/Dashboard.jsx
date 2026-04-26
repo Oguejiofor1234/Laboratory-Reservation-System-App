@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDateTimeET, formatTimeET } from '../utils/timezone';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
@@ -201,13 +202,13 @@ const EquipmentDescriptionEditor = ({ equipmentId, currentDescription }) => {
   );
 };
 
-// ─── Image Upload (Supervisor)
-const ImageUpload = ({ equipmentId, currentImageUrl, onUpdated }) => {
-  const [preview, setPreview] = useState(null);
+// ─── Image Upload (Supervisor) — circular style matching the landing page circles
+const ImageUpload = ({ equipmentId, currentImageUrl }) => {
+  const [preview, setPreview]   = useState(null);
   const [uploading, setUploading] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [deleting, setDeleting]  = useState(false);
+  const [hovered, setHovered]    = useState(false);
   const queryClient = useQueryClient();
-  const inputRef = useState(null);
 
   const handleFile = async (e) => {
     const file = e.target.files[0];
@@ -220,48 +221,129 @@ const ImageUpload = ({ equipmentId, currentImageUrl, onUpdated }) => {
       await api.post(`/equipment/${equipmentId}/image`, form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      toast.success('Image uploaded!');
+      toast.success('Image uploaded! Visible on the home page.');
       queryClient.invalidateQueries(['dashboard-tech']);
       queryClient.invalidateQueries(['equipment']);
+      queryClient.invalidateQueries(['equipment-public']);
     } catch { toast.error('Upload failed.'); setPreview(null); }
     finally { setUploading(false); }
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm('Remove this image?')) return;
+  const handleDelete = async (e) => {
+    e.stopPropagation();
+    if (!window.confirm('Remove this equipment photo?')) return;
     setDeleting(true);
     try {
       await api.delete(`/equipment/${equipmentId}/image`);
-      toast.success('Image removed.');
+      toast.success('Photo removed.');
       setPreview(null);
       queryClient.invalidateQueries(['dashboard-tech']);
       queryClient.invalidateQueries(['equipment']);
+      queryClient.invalidateQueries(['equipment-public']);
     } catch { toast.error('Failed to remove.'); }
     finally { setDeleting(false); }
   };
 
   const shown = preview || currentImageUrl;
+  const SIZE  = 160;
 
   return (
-    <div className="mt-2 pt-2 border-t border-dark-border">
-      <p className="text-[9px] font-mono text-text-muted uppercase tracking-wider mb-1">Equipment Photo</p>
-      {shown ? (
-        <div style={{ position: 'relative', width: '100%', marginBottom: 6 }}>
-          <img src={shown} alt="equipment" style={{ width: '100%', height: 80, objectFit: 'cover', borderRadius: 8, border: '1.5px solid #dde8f0' }} />
-          <button onClick={handleDelete} disabled={deleting}
-            style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(231,76,60,0.85)', border: 'none', borderRadius: 6, color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 7px', cursor: 'pointer' }}>
-            {deleting ? '…' : '× Remove'}
+    <div>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+
+        {/* ── Circular upload zone ── */}
+        <label
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          style={{
+            width: SIZE, height: SIZE,
+            borderRadius: '50%',
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            position: 'relative', cursor: uploading ? 'wait' : 'pointer', overflow: 'hidden',
+            flexShrink: 0,
+            /* ring that matches the landing-page circle */
+            background: shown
+              ? 'transparent'
+              : 'radial-gradient(circle at 38% 38%, rgba(0,181,189,0.14) 0%, rgba(0,59,92,0.07) 100%)',
+            border: shown ? 'none' : '2px dashed rgba(0,181,189,0.45)',
+            boxShadow: hovered ? '0 0 0 3px rgba(0,181,189,0.2)' : 'none',
+            transition: 'box-shadow 0.2s',
+          }}
+        >
+          {/* Dashed outer decorative ring (no image) */}
+          {!shown && (
+            <div style={{
+              position: 'absolute', inset: -8, borderRadius: '50%',
+              border: '1.5px dashed rgba(0,181,189,0.18)', pointerEvents: 'none',
+            }} />
+          )}
+
+          {/* Image or placeholder */}
+          {shown ? (
+            <img
+              src={shown}
+              alt="equipment"
+              style={{ width: SIZE, height: SIZE, objectFit: 'cover', borderRadius: '50%',
+                       border: '2.5px solid rgba(0,181,189,0.3)', display: 'block' }}
+            />
+          ) : (
+            <>
+              <span style={{ fontSize: 22, marginBottom: 4 }}>📷</span>
+              <span style={{ fontSize: 9, fontWeight: 700, color: '#00B5BD',
+                             textAlign: 'center', lineHeight: 1.3, letterSpacing: 0.5 }}>
+                {uploading ? 'Uploading…' : 'Upload\nPhoto'}
+              </span>
+            </>
+          )}
+
+          {/* Hover overlay when image exists */}
+          {shown && hovered && !uploading && (
+            <div style={{
+              position: 'absolute', inset: 0, borderRadius: '50%',
+              background: 'rgba(0,30,48,0.62)',
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center', gap: 3,
+            }}>
+              <span style={{ fontSize: 18 }}>📷</span>
+              <span style={{ fontSize: 9, color: '#fff', fontWeight: 700, letterSpacing: 0.5 }}>Change</span>
+            </div>
+          )}
+
+          {/* Loading spinner overlay */}
+          {uploading && (
+            <div style={{
+              position: 'absolute', inset: 0, borderRadius: '50%',
+              background: 'rgba(0,181,189,0.18)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <span style={{ fontSize: 9, color: '#00B5BD', fontWeight: 700 }}>…</span>
+            </div>
+          )}
+
+          <input type="file" accept="image/*" style={{ display: 'none' }}
+            onChange={handleFile} disabled={uploading} />
+        </label>
+
+        {/* Remove button — only when an image exists */}
+        {shown && (
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            style={{
+              fontSize: 9, fontWeight: 700, color: '#e74c3c',
+              background: '#fff5f5', border: '1px solid #fcc',
+              borderRadius: 6, padding: '2px 10px', cursor: 'pointer',
+            }}
+          >
+            {deleting ? 'Removing…' : '× Remove Photo'}
           </button>
-        </div>
-      ) : (
-        <div style={{ width: '100%', height: 60, borderRadius: 8, border: '1.5px dashed #c8d8e8', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
-          <span style={{ fontSize: 10, color: '#9ab0c4' }}>No photo yet</span>
-        </div>
-      )}
-      <label style={{ display: 'block', textAlign: 'center', fontSize: 10, fontWeight: 700, color: '#00B5BD', cursor: 'pointer', padding: '4px 8px', border: '1.5px solid #00B5BD', borderRadius: 8 }}>
-        {uploading ? 'Uploading…' : shown ? '📷 Change Photo' : '📷 Upload Photo'}
-        <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFile} disabled={uploading} />
-      </label>
+        )}
+
+        <p style={{ fontSize: 9, color: '#9ab0c4', textAlign: 'center', lineHeight: 1.4, margin: 0 }}>
+          {shown ? 'Shown in the circular frame on the home page' : 'Appears in the circular frame on the home page'}
+        </p>
+      </div>
     </div>
   );
 };
@@ -299,7 +381,7 @@ const VideosManager = ({ equipmentId, currentVideos }) => {
   };
 
   return (
-    <div className="mt-2 pt-2 border-t border-dark-border">
+    <div>
       <div className="flex items-center justify-between mb-1">
         <p className="text-[9px] font-mono text-text-muted uppercase tracking-wider">Tutorial Videos</p>
         <button onClick={() => setAdding(a => !a)}
@@ -373,7 +455,7 @@ const MaterialsManager = ({ equipmentId, currentMaterials }) => {
   };
 
   return (
-    <div className="mt-2 pt-2 border-t border-dark-border">
+    <div>
       <div className="flex items-center justify-between mb-1">
         <p className="text-[9px] font-mono text-text-muted uppercase tracking-wider">Materials</p>
         <button onClick={() => setAdding(a => !a)}
@@ -413,6 +495,70 @@ const MaterialsManager = ({ equipmentId, currentMaterials }) => {
           </button>
         </div>
       )}
+    </div>
+  );
+};
+
+// ─── Supervisor Picker (Supervisor) ───────────────────────────────────────
+const SupervisorPicker = ({ equipmentId, currentPersonInChargeId }) => {
+  const [saving, setSaving] = useState(false);
+  const [selected, setSelected] = useState(currentPersonInChargeId || '');
+  const queryClient = useQueryClient();
+
+  const { data: techs = [] } = useQuery({
+    queryKey: ['technologists'],
+    queryFn: () => api.get('/auth/technologists').then(r => r.data.data),
+    staleTime: 60000,
+  });
+
+  const handleChange = async (e) => {
+    const val = e.target.value;
+    setSelected(val);
+    setSaving(true);
+    try {
+      await api.patch(`/equipment/${equipmentId}`, { personInChargeId: val || null });
+      toast.success(val ? 'Supervisor assigned!' : 'Supervisor removed.');
+      queryClient.invalidateQueries(['dashboard-tech']);
+      queryClient.invalidateQueries(['equipment']);
+      queryClient.invalidateQueries(['equipment-public']);
+    } catch { toast.error('Failed to update supervisor.'); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div>
+      <select
+        value={selected}
+        onChange={handleChange}
+        disabled={saving}
+        style={{
+          width: '100%', fontSize: 12, color: selected ? '#003B5C' : '#9ab0c4',
+          border: '1.5px solid #c8d8e8', borderRadius: 9, padding: '8px 10px',
+          background: '#fff', outline: 'none', cursor: 'pointer',
+          fontFamily: 'Inter,system-ui,sans-serif', fontWeight: selected ? 700 : 400,
+        }}
+      >
+        <option value="">-- No supervisor assigned --</option>
+        {techs.map(t => (
+          <option key={t.id} value={t.id}>
+            {t.firstName} {t.lastName} ({t.email})
+          </option>
+        ))}
+      </select>
+      {selected && (() => {
+        const pic = techs.find(t => t.id === selected);
+        return pic ? (
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:8, padding:'8px 10px', background:'#f0fffe', borderRadius:9, border:'1px solid #b2e8ea' }}>
+            <div style={{ width:28, height:28, borderRadius:'50%', background:'linear-gradient(135deg,#003B5C,#00B5BD)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:800, fontSize:12, flexShrink:0 }}>
+              {pic.firstName[0]}
+            </div>
+            <div>
+              <p style={{ fontSize:12, fontWeight:700, color:'#003B5C', margin:0 }}>{pic.firstName} {pic.lastName}</p>
+              <p style={{ fontSize:10, color:'#00B5BD', margin:0 }}>{pic.email}</p>
+            </div>
+          </div>
+        ) : null;
+      })()}
     </div>
   );
 };
@@ -612,131 +758,368 @@ const TrainingCard = ({ s, trainingMutation, queryClient, t }) => {
   const iStyle = { width:'100%', fontSize:13, color:'#1a2e44', border:'1.5px solid #c8d8e8', borderRadius:8, padding:'9px 12px', outline:'none', boxSizing:'border-box', fontFamily:'Inter,system-ui,sans-serif', background:'#fff' };
   const lStyle = { fontSize:12, fontWeight:700, color:'#003B5C', display:'block', marginBottom:5 };
 
+  const statusColor = { CONFIRMED:'#27ae60', RESCHEDULED:'#e67e22', REJECTED:'#e74c3c', PENDING:'#4a6278' }[s.status] || '#4a6278';
+  const statusBg    = { CONFIRMED:'#f0fef4', RESCHEDULED:'#fff8f0', REJECTED:'#fff5f5', PENDING:'#EEF4FB' }[s.status] || '#EEF4FB';
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card" style={{ padding:'18px 20px' }}>
+
+      {/* ── Header: equipment name + status badge on same row ── */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginBottom:8 }}>
+        <p style={{ fontWeight:800, fontSize:14, color:'#003B5C', margin:0 }}>
+          {s.equipment.icon} {s.equipment.name}
+        </p>
+        <span style={{ fontSize:10, fontWeight:800, padding:'3px 12px', borderRadius:20,
+          background:statusBg, color:statusColor, border:`1px solid ${statusColor}44`,
+          whiteSpace:'nowrap', flexShrink:0 }}>{s.status}</span>
+      </div>
+
+      {/* ── Student info ── */}
+      <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10,
+        padding:'8px 12px', background:'#f8fbff', borderRadius:10, border:'1px solid #dde8f0' }}>
+        <div style={{ width:32, height:32, borderRadius:'50%', background:'linear-gradient(135deg,#003B5C,#00B5BD)',
+          display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:800, fontSize:13, flexShrink:0 }}>
+          {s.student.firstName[0]}
+        </div>
+        <div style={{ minWidth:0 }}>
+          <p style={{ fontSize:13, fontWeight:700, color:'#003B5C', margin:0 }}>
+            {s.student.firstName} {s.student.lastName}
+          </p>
+          <p style={{ fontSize:11, color:'#7a94a8', margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+            {s.student.email}
+          </p>
+        </div>
+      </div>
+
+      {/* ── Requested time ── */}
+      <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px',
+        background:'#f8fbff', borderRadius:10, border:'1px solid #dde8f0',
+        marginBottom: s.status === 'RESCHEDULED' && s.proposedAt ? 10 : 14 }}>
+        <span style={{ fontSize:14 }}>📅</span>
+        <div>
+          <p style={{ fontSize:9, color:'#9ab0c4', fontWeight:800, letterSpacing:1.5, textTransform:'uppercase', margin:'0 0 2px' }}>Requested</p>
+          <p style={{ fontSize:13, color:'#003B5C', fontWeight:700, margin:0 }}>{formatDateTimeET(new Date(s.scheduledAt))}</p>
+        </div>
+      </div>
+
+      {/* ── Awaiting student confirmation (RESCHEDULED) ── */}
+      {s.status === 'RESCHEDULED' && s.proposedAt && (
+        <div style={{ borderRadius:12, background:'#fff8f0', border:'2px solid #e67e2244',
+          overflow:'hidden', marginBottom:14 }}>
+          <div style={{ background:'#e67e22', padding:'7px 14px', display:'flex', alignItems:'center', gap:8 }}>
+            <span style={{ fontSize:14 }}>⏰</span>
+            <p style={{ fontSize:12, fontWeight:800, color:'#fff', margin:0 }}>Proposed — awaiting student confirmation</p>
+          </div>
+          <div style={{ padding:'12px 14px' }}>
+            <p style={{ fontSize:9, color:'#e67e22', fontWeight:800, letterSpacing:1.5, textTransform:'uppercase', margin:'0 0 4px' }}>New Time</p>
+            <p style={{ fontSize:13, color:'#003B5C', fontWeight:700, margin:0 }}>{formatDateTimeET(new Date(s.proposedAt))}</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Action buttons ── */}
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+        {s.status === 'PENDING' && (
+          <button onClick={() => trainingMutation.mutate({ id: s.id, action: 'confirm' })}
+            className="btn-primary flex items-center gap-1" style={{ flex:1, justifyContent:'center', fontSize:13, padding:'9px 0' }}>
+            <CheckCircle size={13} /> Confirm
+          </button>
+        )}
+        {['PENDING','CONFIRMED'].includes(s.status) && (
+          <button onClick={() => trainingMutation.mutate({ id: s.id, action: 'reject' })}
+            style={{ flex:1, padding:'9px', borderRadius:9, border:'1.5px solid #e74c3c44',
+              background:'#fff5f5', color:'#e74c3c', fontWeight:700, fontSize:13, cursor:'pointer',
+              display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+            <XCircle size={13} /> Reject
+          </button>
+        )}
+        {s.status === 'CONFIRMED' && (
+          <button onClick={() => trainingMutation.mutate({ id: s.id, action: 'complete' })}
+            style={{ flex:1, padding:'9px', borderRadius:9, border:'1.5px solid #00B5BD44',
+              background:'#f0fffe', color:'#00B5BD', fontWeight:700, fontSize:13, cursor:'pointer',
+              display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+            <GraduationCap size={13} /> Mark Complete
+          </button>
+        )}
+        {['PENDING','CONFIRMED'].includes(s.status) && (
+          <button onClick={() => setShowReschedule(r => !r)}
+            style={{ flex:1, padding:'9px', borderRadius:9,
+              border:'1.5px solid #e67e2244',
+              background: showReschedule ? '#fff8f0' : 'transparent',
+              color:'#e67e22', fontWeight:700, fontSize:13, cursor:'pointer' }}>
+            ⏰ Reschedule
+          </button>
+        )}
+      </div>
+
+      {/* ── Reschedule form ── */}
+      {showReschedule && (
+        <div style={{ marginTop:14, borderRadius:12, background:'#fff8f0',
+          border:'2px solid #e67e2244', overflow:'hidden' }}>
+          <div style={{ background:'#e67e22', padding:'8px 14px', display:'flex', alignItems:'center', gap:8 }}>
+            <span style={{ fontSize:14 }}>⏰</span>
+            <p style={{ fontSize:12, fontWeight:800, color:'#fff', margin:0 }}>Propose a New Training Time</p>
+          </div>
+          <div style={{ padding:'16px' }}>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
+              <div>
+                <label style={lStyle}>Date *</label>
+                <input type="date" value={proposedDate} min={today}
+                  onChange={e => setProposedDate(e.target.value)} style={iStyle} />
+              </div>
+              <div>
+                <label style={lStyle}>Time *</label>
+                <select value={proposedTime} onChange={e => setProposedTime(e.target.value)} style={iStyle}>
+                  <option value="">-- Select --</option>
+                  {Array.from({ length: 24 }, (_, h) => [
+                    `${String(h).padStart(2,'0')}:00`,
+                    `${String(h).padStart(2,'0')}:30`,
+                  ]).flat().map(slot => (
+                    <option key={slot} value={slot}>
+                      {(() => { const [hh,mm]=slot.split(':'); const h=parseInt(hh); return `${h===0?12:h>12?h-12:h}:${mm} ${h<12?'AM':'PM'}`; })()}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Preview */}
+            {proposedDate && proposedTime && (
+              <div style={{ padding:'9px 12px', borderRadius:9, background:'#fffbf0',
+                border:'1px solid #e67e2244', marginBottom:12 }}>
+                <p style={{ fontSize:9, color:'#e67e22', fontWeight:800, letterSpacing:1.5, textTransform:'uppercase', margin:'0 0 3px' }}>Preview</p>
+                <p style={{ fontSize:13, color:'#003B5C', fontWeight:700, margin:0 }}>
+                  {formatDateTimeET(new Date(`${proposedDate}T${proposedTime}`))}
+                </p>
+              </div>
+            )}
+
+            <div style={{ marginBottom:12 }}>
+              <label style={lStyle}>Reason (optional)</label>
+              <input value={rescheduleReason} onChange={e => setRescheduleReason(e.target.value)}
+                placeholder="e.g. Equipment maintenance, prior commitment…" style={iStyle} />
+            </div>
+
+            <div style={{ display:'flex', gap:10 }}>
+              <button onClick={handleReschedule}
+                disabled={submitting || !proposedDate || !proposedTime}
+                style={{ flex:1, padding:'10px', borderRadius:9,
+                  background:(!proposedDate||!proposedTime)?'#ccc':'#e67e22',
+                  color:'#fff', fontWeight:800, fontSize:13, border:'none',
+                  cursor:(!proposedDate||!proposedTime)?'not-allowed':'pointer' }}>
+                {submitting ? 'Sending…' : 'Send Proposal'}
+              </button>
+              <button onClick={() => { setShowReschedule(false); setProposedDate(''); setProposedTime(''); setRescheduleReason(''); }}
+                style={{ padding:'10px 18px', borderRadius:9, background:'transparent',
+                  color:'#999', fontWeight:600, fontSize:13, border:'1px solid #dde8f0', cursor:'pointer' }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </motion.div>
+  );
+};
+
+// ─── Reservation Card (Supervisor) — Confirm / Reject / Reschedule ─────────────
+const ReservationCard = ({ r, reservationMutation, queryClient, t }) => {
+  const [showReschedule, setShowReschedule] = useState(false);
+  const [pStartDate, setPStartDate] = useState('');
+  const [pStartTime, setPStartTime] = useState('');
+  const [pEndDate, setPEndDate] = useState('');
+  const [pEndTime, setPEndTime] = useState('');
+  const [rescheduleReason, setRescheduleReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const timeSlots = Array.from({ length: 24 }, (_, h) => [
+    `${String(h).padStart(2, '0')}:00`,
+    `${String(h).padStart(2, '0')}:30`,
+  ]).flat();
+
+  const formatTimeSlot = (slot) => {
+    const [hh, mm] = slot.split(':');
+    const h = parseInt(hh);
+    return `${h === 0 ? 12 : h > 12 ? h - 12 : h}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
+  };
+
+  const handleReschedule = async () => {
+    if (!pStartDate || !pStartTime || !pEndDate || !pEndTime) {
+      return toast.error('Please fill all date and time fields.');
+    }
+    const pStart = new Date(`${pStartDate}T${pStartTime}`);
+    const pEnd = new Date(`${pEndDate}T${pEndTime}`);
+    if (isNaN(pStart.getTime()) || isNaN(pEnd.getTime())) return toast.error('Invalid date or time.');
+    if (pStart >= pEnd) return toast.error('Start must be before end time.');
+    if (pStart <= new Date()) return toast.error('Proposed start time must be in the future.');
+
+    setSubmitting(true);
+    try {
+      await api.patch(`/reservations/${r.id}/reschedule`, {
+        proposedStartTime: pStart.toISOString(),
+        proposedEndTime: pEnd.toISOString(),
+        reason: rescheduleReason || undefined,
+      });
+      toast.success('Reschedule proposal sent to student.');
+      queryClient.invalidateQueries(['dashboard-tech']);
+      setShowReschedule(false);
+      setPStartDate('');
+      setPStartTime('');
+      setPEndDate('');
+      setPEndTime('');
+      setRescheduleReason('');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to reschedule.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const today = new Date().toISOString().split('T')[0];
+  const inputStyle = {
+    width: '100%',
+    fontSize: 13,
+    color: '#1a2e44',
+    border: '1.5px solid #c8d8e8',
+    borderRadius: 8,
+    padding: '9px 12px',
+    outline: 'none',
+    boxSizing: 'border-box',
+    fontFamily: 'Inter,system-ui,sans-serif',
+    background: '#fff',
+  };
+  const labelStyle = {
+    fontSize: 12,
+    fontWeight: 700,
+    color: '#003B5C',
+    display: 'block',
+    marginBottom: 5,
+  };
+  const statusColors = { CONFIRMED: '#27ae60', RESCHEDULED: '#e67e22', REJECTED: '#e74c3c', PENDING: '#4a6278' };
+  const statusBgs = { CONFIRMED: '#f0fef4', RESCHEDULED: '#fff8f0', REJECTED: '#fff5f5', PENDING: '#EEF4FB' };
+  const statusBorders = { CONFIRMED: '#27ae6044', RESCHEDULED: '#e67e2244', REJECTED: '#e74c3c44', PENDING: '#dde8f0' };
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card">
       <div className="flex items-start justify-between flex-wrap gap-3">
-        <div>
+        <div className="flex-1 min-w-0">
           <p style={{ fontWeight: 800, fontSize: 15, color: '#003B5C', margin: '0 0 4px' }}>
-            {s.equipment.icon} {s.equipment.name}
+            {r.equipment.icon} {r.equipment.name}
           </p>
-          <p className="text-xs" style={{color:'#4a6278'}}>
-            {s.student.firstName} {s.student.lastName} · {s.student.email}
+          <p className="text-xs" style={{ color: '#4a6278' }}>
+            {r.user.firstName} {r.user.lastName} · {r.user.email}
           </p>
-          <p className="text-xs" style={{color:'#4a6278'}}>
-            Requested: {format(new Date(s.scheduledAt), 'PPp')}
+          <p className="text-xs mt-1" style={{ color: '#4a6278' }}>
+            Start: {format(new Date(r.startTime), 'PPp')}
           </p>
-          {s.status === 'RESCHEDULED' && s.proposedAt && (
-            <p style={{ fontSize:12, fontWeight:700, color:'#e67e22', margin:'4px 0 0' }}>
-              ⏰ Proposed: {format(new Date(s.proposedAt), 'PPp')} — awaiting student confirmation
-            </p>
+          <p className="text-xs" style={{ color: '#4a6278' }}>
+            End: &nbsp;&nbsp;{format(new Date(r.endTime), 'PPp')}
+          </p>
+          {r.experimentDescription && (
+            <p className="text-xs mt-1 italic line-clamp-2" style={{ color: '#7a94a8' }}>“{r.experimentDescription}”</p>
+          )}
+          {r.status === 'RESCHEDULED' && r.proposedStartTime && (
+            <div style={{ marginTop: 8, padding: '10px 12px', borderRadius: 9, background: '#fff8f0', border: '1.5px solid #e67e2233' }}>
+              <p style={{ fontSize: 12, fontWeight: 800, color: '#e67e22', margin: '0 0 2px' }}>⏰ Awaiting student confirmation</p>
+              <p style={{ fontSize: 12, color: '#4a6278', margin: 0 }}>
+                Proposed: {format(new Date(r.proposedStartTime), 'PPp')} – {format(new Date(r.proposedEndTime), 'p')}
+              </p>
+              {r.rescheduleReason && (
+                <p style={{ fontSize: 11, color: '#9ab0c4', margin: '2px 0 0' }}>{r.rescheduleReason}</p>
+              )}
+            </div>
           )}
         </div>
         <div className="flex flex-col gap-2 items-end">
-          <div className="flex gap-2 flex-wrap">
-            {s.status === 'PENDING' && (
-              <button onClick={() => trainingMutation.mutate({ id: s.id, action: 'confirm' })}
-                className="btn-primary text-xs px-3 py-1.5 flex items-center gap-1">
+          <div className="flex gap-2 flex-wrap justify-end">
+            {r.status === 'PENDING' && (
+              <button onClick={() => reservationMutation.mutate({ id: r.id, action: 'confirm' })}
+                className="flex items-center gap-1 btn-primary text-xs px-3 py-1.5">
                 <CheckCircle size={12} /> {t('dashboard.tech.confirm')}
               </button>
             )}
-            {['PENDING','CONFIRMED'].includes(s.status) && (
-              <button onClick={() => trainingMutation.mutate({ id: s.id, action: 'reject' })}
+            {['PENDING', 'CONFIRMED'].includes(r.status) && (
+              <button onClick={() => reservationMutation.mutate({ id: r.id, action: 'reject', reason: 'Rejected by supervisor' })}
                 className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs border border-status-rejected text-status-rejected hover:bg-status-rejected/10 transition-colors">
                 <XCircle size={12} /> {t('dashboard.tech.reject')}
               </button>
             )}
-            {s.status === 'CONFIRMED' && (
-              <button onClick={() => trainingMutation.mutate({ id: s.id, action: 'complete' })}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs border border-teal text-teal hover:bg-teal/10 transition-colors">
-                <GraduationCap size={12} /> {t('dashboard.tech.complete')}
-              </button>
-            )}
-            {['PENDING','CONFIRMED'].includes(s.status) && (
-              <button onClick={() => setShowReschedule(r => !r)}
-                style={{ padding:'6px 12px', borderRadius:8, border:'1.5px solid #e67e22', background: showReschedule ? '#fff8f0':'transparent', color:'#e67e22', fontWeight:700, fontSize:12, cursor:'pointer' }}>
+            {['PENDING', 'CONFIRMED'].includes(r.status) && (
+              <button onClick={() => setShowReschedule(s => !s)}
+                style={{ padding: '6px 12px', borderRadius: 8, border: '1.5px solid #e67e22', background: showReschedule ? '#fff8f0' : 'transparent', color: '#e67e22', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
                 ⏰ Reschedule
               </button>
             )}
           </div>
           <span style={{
-            fontSize:10, fontWeight:800, padding:'3px 10px', borderRadius:20, letterSpacing:0.5,
-            background: s.status==='CONFIRMED'?'#f0fef4':s.status==='RESCHEDULED'?'#fff8f0':s.status==='REJECTED'?'#fff5f5':'#EEF4FB',
-            color: s.status==='CONFIRMED'?'#27ae60':s.status==='RESCHEDULED'?'#e67e22':s.status==='REJECTED'?'#e74c3c':'#4a6278',
-            border: `1px solid ${s.status==='CONFIRMED'?'#27ae6044':s.status==='RESCHEDULED'?'#e67e2244':s.status==='REJECTED'?'#e74c3c44':'#dde8f0'}`,
-          }}>{s.status}</span>
+            fontSize: 10,
+            fontWeight: 800,
+            padding: '3px 10px',
+            borderRadius: 20,
+            letterSpacing: 0.5,
+            background: statusBgs[r.status] || '#EEF4FB',
+            color: statusColors[r.status] || '#4a6278',
+            border: `1px solid ${statusBorders[r.status] || '#dde8f0'}`,
+          }}>
+            {r.status}
+          </span>
         </div>
       </div>
       {showReschedule && (
-        <div style={{ marginTop:16, padding:'18px 20px', background:'#fff8f0', borderRadius:14, border:'1.5px solid #e67e2244', boxShadow:'0 2px 12px rgba(230,126,34,0.08)' }}>
-          <p style={{ fontSize:13, fontWeight:800, color:'#e67e22', margin:'0 0 14px', display:'flex', alignItems:'center', gap:6 }}>
-            ⏰ Propose New Date & Time
-          </p>
-
-          {/* Row 1: Date + Time */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
-            {/* Date */}
+        <div style={{ marginTop: 16, padding: '18px 20px', background: '#fff8f0', borderRadius: 14, border: '1.5px solid #e67e2244', boxShadow: '0 2px 12px rgba(230,126,34,0.08)' }}>
+          <p style={{ fontSize: 13, fontWeight: 800, color: '#e67e22', margin: '0 0 14px' }}>⏰ Propose New Date & Time</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
             <div>
-              <label style={lStyle}>Date *</label>
-              <input
-                type="date"
-                value={proposedDate}
-                min={today}
-                onChange={e => setProposedDate(e.target.value)}
-                style={iStyle}
-              />
+              <label style={labelStyle}>New Start Date *</label>
+              <input type="date" value={pStartDate} min={today} onChange={e => setPStartDate(e.target.value)} style={inputStyle} />
             </div>
-            {/* Time */}
             <div>
-              <label style={lStyle}>Time *</label>
-              <select
-                value={proposedTime}
-                onChange={e => setProposedTime(e.target.value)}
-                style={iStyle}
-              >
-                <option value="">-- Select time --</option>
-                {Array.from({ length: 24 }, (_, h) => [
-                  `${String(h).padStart(2,'0')}:00`,
-                  `${String(h).padStart(2,'0')}:30`,
-                ]).flat().map(slot => (
-                  <option key={slot} value={slot}>
-                    {(() => {
-                      const [hh, mm] = slot.split(':');
-                      const h = parseInt(hh);
-                      return `${h === 0 ? 12 : h > 12 ? h - 12 : h}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
-                    })()}
-                  </option>
-                ))}
+              <label style={labelStyle}>Start Time *</label>
+              <select value={pStartTime} onChange={e => setPStartTime(e.target.value)} style={inputStyle}>
+                <option value="">-- Select --</option>
+                {timeSlots.map(slot => <option key={slot} value={slot}>{formatTimeSlot(slot)}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>New End Date *</label>
+              <input type="date" value={pEndDate} min={pStartDate || today} onChange={e => setPEndDate(e.target.value)} style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>End Time *</label>
+              <select value={pEndTime} onChange={e => setPEndTime(e.target.value)} style={inputStyle}>
+                <option value="">-- Select --</option>
+                {timeSlots.map(slot => <option key={slot} value={slot}>{formatTimeSlot(slot)}</option>)}
               </select>
             </div>
           </div>
-
-          {/* Preview */}
-          {proposedDate && proposedTime && (
-            <div style={{ padding:'9px 14px', borderRadius:9, background:'rgba(230,126,34,0.1)', border:'1px solid #e67e2233', marginBottom:12 }}>
-              <p style={{ fontSize:12, fontWeight:700, color:'#e67e22', margin:0 }}>
-                📅 Proposed: {new Date(`${proposedDate}T${proposedTime}`).toLocaleString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric', hour:'numeric', minute:'2-digit' })}
+          {pStartDate && pStartTime && pEndDate && pEndTime && (
+            <div style={{ padding: '9px 14px', borderRadius: 9, background: 'rgba(230,126,34,0.1)', border: '1px solid #e67e2233', marginBottom: 12 }}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: '#e67e22', margin: 0 }}>
+                📅 {new Date(`${pStartDate}T${pStartTime}`).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                {' '}–{' '}
+                {new Date(`${pEndDate}T${pEndTime}`).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
               </p>
             </div>
           )}
-
-          {/* Reason */}
-          <div style={{ marginBottom:14 }}>
-            <label style={lStyle}>Reason for reschedule (optional)</label>
-            <input
-              value={rescheduleReason}
-              onChange={e => setRescheduleReason(e.target.value)}
-              placeholder="e.g. Equipment maintenance, prior commitment…"
-              style={iStyle}
-            />
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>Reason (optional)</label>
+            <input value={rescheduleReason} onChange={e => setRescheduleReason(e.target.value)}
+              placeholder="e.g. Equipment maintenance, schedule conflict…" style={inputStyle} />
           </div>
-
-          <div style={{ display:'flex', gap:10 }}>
-            <button onClick={handleReschedule} disabled={submitting || !proposedDate || !proposedTime}
-              style={{ flex:1, padding:'10px', borderRadius:9, background: (!proposedDate||!proposedTime) ? '#ccc':'#e67e22', color:'#fff', fontWeight:800, fontSize:13, border:'none', cursor:(!proposedDate||!proposedTime)?'not-allowed':'pointer', transition:'all 0.2s' }}>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={handleReschedule} disabled={submitting || !pStartDate || !pStartTime || !pEndDate || !pEndTime}
+              style={{ flex: 1, padding: '10px', borderRadius: 9, background: (!pStartDate || !pStartTime || !pEndDate || !pEndTime) ? '#ccc' : '#e67e22', color: '#fff', fontWeight: 800, fontSize: 13, border: 'none', cursor: (!pStartDate || !pStartTime || !pEndDate || !pEndTime) ? 'not-allowed' : 'pointer', transition: 'all 0.2s' }}>
               {submitting ? 'Sending…' : '⏰ Send Reschedule Proposal'}
             </button>
-            <button onClick={() => { setShowReschedule(false); setProposedDate(''); setProposedTime(''); setRescheduleReason(''); }}
-              style={{ padding:'10px 18px', borderRadius:9, background:'transparent', color:'#999', fontWeight:600, fontSize:13, border:'1px solid #dde8f0', cursor:'pointer' }}>
+            <button onClick={() => {
+              setShowReschedule(false);
+              setPStartDate('');
+              setPStartTime('');
+              setPEndDate('');
+              setPEndTime('');
+              setRescheduleReason('');
+            }}
+              style={{ padding: '10px 18px', borderRadius: 9, background: 'transparent', color: '#999', fontWeight: 600, fontSize: 13, border: '1px solid #dde8f0', cursor: 'pointer' }}>
               Cancel
             </button>
           </div>
@@ -831,14 +1214,17 @@ const StudentDashboard = () => {
                     {r.experimentDescription && (
                       <p className="text-[10px] text-text-muted mt-1 line-clamp-2 italic">"{r.experimentDescription}"</p>
                     )}
-                    {/* Tutorial videos — shown when booking is confirmed */}
+                    {/* Tutorial videos — only shown when booking is CONFIRMED */}
                     {r.status === 'CONFIRMED' && (() => {
                       const vids = Array.isArray(r.equipment?.videos) && r.equipment.videos.length > 0
                         ? r.equipment.videos
                         : r.equipment?.videoUrl ? [{ name: 'Equipment Tutorial', url: r.equipment.videoUrl }] : [];
-                      return vids.length > 0 ? (
+                      if (vids.length === 0) return null;
+                      return (
                         <div className="mt-3 p-3 rounded-lg bg-teal/5 border border-teal/20">
-                          <p className="text-[10px] text-teal font-bold uppercase tracking-wider mb-3">🎬 Equipment Tutorial{vids.length > 1 ? 's' : ''}</p>
+                          <p className="text-[10px] text-teal font-bold uppercase tracking-wider mb-3">
+                            🎬 Equipment Tutorial{vids.length > 1 ? 's' : ''}
+                          </p>
                           <div className="space-y-4">
                             {vids.map((v, i) => (
                               <div key={i}>
@@ -850,9 +1236,9 @@ const StudentDashboard = () => {
                             ))}
                           </div>
                         </div>
-                      ) : null;
+                      );
                     })()}
-                    {/* Reference materials — shown when booking is confirmed */}
+                    {/* Reference materials — only shown when booking is CONFIRMED */}
                     {r.status === 'CONFIRMED' && Array.isArray(r.equipment?.materials) && r.equipment.materials.length > 0 && (
                       <div className="mt-3 p-3 rounded-lg bg-dark-surface border border-dark-border">
                         <p className="text-[10px] text-teal font-bold uppercase tracking-wider mb-2">📎 Reference Materials</p>
@@ -882,6 +1268,58 @@ const StudentDashboard = () => {
                     ) : null}
                   </div>
                 </div>
+                {r.status === 'RESCHEDULED' && r.proposedStartTime && (
+                  <div style={{ marginTop:12, borderRadius:12, background:'#fff8f0', border:'2px solid #e67e2244', overflow:'hidden' }}>
+                    {/* Banner */}
+                    <div style={{ background:'#e67e22', padding:'8px 14px', display:'flex', alignItems:'center', gap:8 }}>
+                      <span style={{ fontSize:15 }}>⏰</span>
+                      <p style={{ fontSize:12, fontWeight:800, color:'#fff', margin:0 }}>Supervisor proposed a new booking time</p>
+                    </div>
+                    <div style={{ padding:'14px' }}>
+                      {/* Start → Finish row */}
+                      <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10,
+                        padding:'10px 12px', background:'#fffbf0', borderRadius:9, border:'1px solid #e67e2244' }}>
+                        <div style={{ flex:1 }}>
+                          <p style={{ fontSize:9, color:'#00B5BD', fontWeight:800, letterSpacing:1.5, textTransform:'uppercase', margin:'0 0 2px' }}>Start</p>
+                          <p style={{ fontSize:13, color:'#003B5C', fontWeight:700, margin:0 }}>{formatDateTimeET(new Date(r.proposedStartTime))}</p>
+                        </div>
+                        <span style={{ color:'#e67e22', fontWeight:800, fontSize:16 }}>→</span>
+                        <div style={{ flex:1 }}>
+                          <p style={{ fontSize:9, color:'#8e44ad', fontWeight:800, letterSpacing:1.5, textTransform:'uppercase', margin:'0 0 2px' }}>Finish</p>
+                          <p style={{ fontSize:13, color:'#003B5C', fontWeight:700, margin:0 }}>{formatDateTimeET(new Date(r.proposedEndTime))}</p>
+                        </div>
+                      </div>
+                      {r.rescheduleReason && (
+                        <div style={{ padding:'8px 12px', background:'#f8fbff', borderRadius:8, border:'1px solid #dde8f0', marginBottom:12 }}>
+                          <p style={{ fontSize:10, color:'#9ab0c4', fontWeight:700, letterSpacing:1, textTransform:'uppercase', margin:'0 0 3px' }}>Reason</p>
+                          <p style={{ fontSize:12, color:'#4a6278', margin:0 }}>{r.rescheduleReason}</p>
+                        </div>
+                      )}
+                      <div style={{ display:'flex', gap:10 }}>
+                        <button onClick={async () => {
+                          try {
+                            await api.patch(`/reservations/${r.id}/accept-reschedule`);
+                            toast.success('New time accepted! Booking confirmed.');
+                            queryClient.invalidateQueries(['dashboard-student']);
+                          } catch (err) { toast.error(err.response?.data?.message || 'Failed.'); }
+                        }} style={{ flex:1, padding:'10px', borderRadius:9, background:'#27ae60', color:'#fff',
+                          fontWeight:800, fontSize:13, border:'none', cursor:'pointer', boxShadow:'0 2px 8px rgba(39,174,96,0.3)' }}>
+                          ✅ Accept New Time
+                        </button>
+                        <button onClick={async () => {
+                          try {
+                            await api.patch(`/reservations/${r.id}/reject-reschedule`);
+                            toast.success('Reschedule rejected — original booking restored.');
+                            queryClient.invalidateQueries(['dashboard-student']);
+                          } catch (err) { toast.error(err.response?.data?.message || 'Failed.'); }
+                        }} style={{ flex:1, padding:'10px', borderRadius:9, background:'#fff5f5',
+                          color:'#e74c3c', border:'1.5px solid #e74c3c44', fontWeight:700, fontSize:13, cursor:'pointer' }}>
+                          ❌ Keep Original Time
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </motion.div>
             ))}
           </div>
@@ -893,45 +1331,93 @@ const StudentDashboard = () => {
         <section>
           <p className="section-title">{t('dashboard.trainingSessions')}</p>
           <div className="space-y-3">
-            {trainingSessions.map(s => (
-              <div key={s.id} className="card">
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div className="flex-1">
-                    <p className="font-sans font-bold text-text-primary text-sm">{s.equipment.icon} {s.equipment.name}</p>
-                    <p className="text-xs" style={{color:'#4a6278'}}>Scheduled: {format(new Date(s.scheduledAt), 'PPp')}</p>
-                    {s.status === 'RESCHEDULED' && s.proposedAt && (
-                      <div style={{ marginTop:8, padding:'12px 14px', borderRadius:10, background:'#fff8f0', border:'1.5px solid #e67e2244' }}>
-                        <p style={{ fontSize:13, fontWeight:800, color:'#e67e22', margin:'0 0 4px' }}>⏰ Supervisor proposed a new time</p>
-                        <p style={{ fontSize:14, color:'#003B5C', fontWeight:700, margin:'0 0 6px' }}>{format(new Date(s.proposedAt), 'PPp')}</p>
+            {trainingSessions.map(s => {
+              const statusColor = { CONFIRMED:'#27ae60', RESCHEDULED:'#e67e22', REJECTED:'#e74c3c', PENDING:'#4a6278', COMPLETED:'#003B5C' }[s.status] || '#4a6278';
+              const statusBg    = { CONFIRMED:'#f0fef4', RESCHEDULED:'#fff8f0', REJECTED:'#fff5f5', PENDING:'#EEF4FB', COMPLETED:'#EEF4FB' }[s.status] || '#EEF4FB';
+              return (
+                <div key={s.id} className="card" style={{ padding: '18px 20px' }}>
+
+                  {/* ── Header row: equipment + status badge ── */}
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginBottom:10 }}>
+                    <p style={{ fontWeight:800, fontSize:14, color:'#003B5C', margin:0 }}>
+                      {s.equipment.icon} {s.equipment.name}
+                    </p>
+                    <span style={{ fontSize:10, fontWeight:800, padding:'3px 12px', borderRadius:20,
+                      background:statusBg, color:statusColor,
+                      border:`1px solid ${statusColor}44`, whiteSpace:'nowrap', flexShrink:0 }}>
+                      {s.status}
+                    </span>
+                  </div>
+
+                  {/* ── Scheduled time ── */}
+                  <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px',
+                    background:'#f8fbff', borderRadius:10, border:'1px solid #dde8f0', marginBottom: s.status==='RESCHEDULED' ? 12 : 0 }}>
+                    <span style={{ fontSize:14 }}>📅</span>
+                    <div>
+                      <p style={{ fontSize:10, color:'#9ab0c4', fontWeight:700, letterSpacing:1, textTransform:'uppercase', margin:'0 0 2px' }}>Scheduled</p>
+                      <p style={{ fontSize:13, color:'#003B5C', fontWeight:700, margin:0 }}>{formatDateTimeET(new Date(s.scheduledAt))}</p>
+                    </div>
+                  </div>
+
+                  {/* ── Reschedule proposal (only when RESCHEDULED) ── */}
+                  {s.status === 'RESCHEDULED' && s.proposedAt && (
+                    <div style={{ borderRadius:12, background:'#fff8f0', border:'2px solid #e67e2244', overflow:'hidden' }}>
+                      {/* Banner */}
+                      <div style={{ background:'#e67e22', padding:'8px 14px', display:'flex', alignItems:'center', gap:8 }}>
+                        <span style={{ fontSize:15 }}>⏰</span>
+                        <p style={{ fontSize:12, fontWeight:800, color:'#fff', margin:0, letterSpacing:0.3 }}>
+                          Supervisor proposed a new training time
+                        </p>
+                      </div>
+                      <div style={{ padding:'14px' }}>
+                        {/* New time */}
+                        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10,
+                          padding:'10px 12px', background:'#fffbf0', borderRadius:9, border:'1px solid #e67e2244' }}>
+                          <span style={{ fontSize:13 }}>📅</span>
+                          <div>
+                            <p style={{ fontSize:9, color:'#e67e22', fontWeight:800, letterSpacing:1.5,
+                              textTransform:'uppercase', margin:'0 0 2px' }}>New Proposed Time</p>
+                            <p style={{ fontSize:13, color:'#003B5C', fontWeight:700, margin:0 }}>
+                              {formatDateTimeET(new Date(s.proposedAt))}
+                            </p>
+                          </div>
+                        </div>
                         {s.rescheduleReason && (
-                          <p style={{ fontSize:12, color:'#7a94a8', margin:'0 0 10px' }}>Reason: {s.rescheduleReason}</p>
+                          <div style={{ padding:'8px 12px', background:'#f8fbff', borderRadius:8,
+                            border:'1px solid #dde8f0', marginBottom:12 }}>
+                            <p style={{ fontSize:10, color:'#9ab0c4', fontWeight:700, letterSpacing:1,
+                              textTransform:'uppercase', margin:'0 0 3px' }}>Reason</p>
+                            <p style={{ fontSize:12, color:'#4a6278', margin:0 }}>{s.rescheduleReason}</p>
+                          </div>
                         )}
-                        <div style={{ display:'flex', gap:8 }}>
+                        {/* Action buttons */}
+                        <div style={{ display:'flex', gap:10 }}>
                           <button onClick={async () => {
-                            try { await api.patch(`/training/${s.id}/accept-reschedule`); toast.success('New time accepted!'); queryClient.invalidateQueries(['dashboard-student']); }
-                            catch (err) { toast.error(err.response?.data?.message || 'Failed.'); }
-                          }} style={{ padding:'8px 18px', borderRadius:8, background:'#27ae60', color:'#fff', fontWeight:700, fontSize:13, border:'none', cursor:'pointer' }}>
+                            try { await api.patch(`/training/${s.id}/accept-reschedule`);
+                              toast.success('New time accepted!');
+                              queryClient.invalidateQueries(['dashboard-student']);
+                            } catch (err) { toast.error(err.response?.data?.message || 'Failed.'); }
+                          }} style={{ flex:1, padding:'10px', borderRadius:9, background:'#27ae60', color:'#fff',
+                            fontWeight:800, fontSize:13, border:'none', cursor:'pointer',
+                            boxShadow:'0 2px 8px rgba(39,174,96,0.3)' }}>
                             ✅ Accept New Time
                           </button>
                           <button onClick={async () => {
-                            try { await api.patch(`/training/${s.id}/reject-reschedule`); toast.success('Reschedule rejected — supervisor notified.'); queryClient.invalidateQueries(['dashboard-student']); }
-                            catch (err) { toast.error(err.response?.data?.message || 'Failed.'); }
-                          }} style={{ padding:'8px 18px', borderRadius:8, background:'transparent', color:'#e74c3c', border:'1.5px solid #e74c3c', fontWeight:700, fontSize:13, cursor:'pointer' }}>
-                            ❌ Reject
+                            try { await api.patch(`/training/${s.id}/reject-reschedule`);
+                              toast.success('Reschedule rejected — supervisor notified.');
+                              queryClient.invalidateQueries(['dashboard-student']);
+                            } catch (err) { toast.error(err.response?.data?.message || 'Failed.'); }
+                          }} style={{ flex:1, padding:'10px', borderRadius:9, background:'#fff5f5',
+                            color:'#e74c3c', border:'1.5px solid #e74c3c44', fontWeight:700, fontSize:13, cursor:'pointer' }}>
+                            ❌ Reject Proposal
                           </button>
                         </div>
                       </div>
-                    )}
-                  </div>
-                  <span style={{
-                    fontSize:10, fontWeight:800, padding:'3px 10px', borderRadius:20, letterSpacing:0.5, flexShrink:0,
-                    background: s.status==='CONFIRMED'?'#f0fef4':s.status==='RESCHEDULED'?'#fff8f0':s.status==='REJECTED'?'#fff5f5':'#EEF4FB',
-                    color: s.status==='CONFIRMED'?'#27ae60':s.status==='RESCHEDULED'?'#e67e22':s.status==='REJECTED'?'#e74c3c':'#4a6278',
-                    border: `1px solid ${s.status==='CONFIRMED'?'#27ae6044':s.status==='RESCHEDULED'?'#e67e2244':s.status==='REJECTED'?'#e74c3c44':'#dde8f0'}`,
-                  }}>{s.status}</span>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}
@@ -1126,84 +1612,6 @@ const InsightsPanel = () => {
         </div>
       </div>
 
-      {/* Equipment usage vertical bar chart */}
-      {data.equipmentRanking.length > 0 && (
-        <section>
-          <p className="section-title">📊 Equipment Usage — Last 30 Days</p>
-          <div className="card">
-            {/* Chart area */}
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 180, padding: '0 4px 0', overflowX: 'auto' }}>
-              {data.equipmentRanking.map((eq, i) => {
-                const isTop = i === 0;
-                const pct = data.maxUsage > 0 ? (eq.count / data.maxUsage) : 0;
-                const barH = Math.max(Math.round(pct * 150), eq.count > 0 ? 10 : 3);
-                return (
-                  <div key={eq.id} style={{ flex: '1 0 48px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 48 }}>
-                    {/* Count label */}
-                    <span style={{ fontSize: 13, fontWeight: 900, color: isTop ? '#00B5BD' : '#003B5C', minHeight: 20 }}>
-                      {eq.count > 0 ? eq.count : ''}
-                    </span>
-                    {/* Bar */}
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: barH, opacity: 1 }}
-                      transition={{ duration: 0.6, delay: i * 0.07, ease: 'easeOut' }}
-                      style={{
-                        width: '100%',
-                        borderRadius: '8px 8px 0 0',
-                        background: isTop
-                          ? 'linear-gradient(to top, #003B5C, #00B5BD)'
-                          : eq.count > 0
-                            ? 'linear-gradient(to top, #c8d8e8, #dde8f0)'
-                            : '#EEF4FB',
-                        boxShadow: isTop ? '0 4px 14px rgba(0,181,189,0.35)' : 'none',
-                        position: 'relative',
-                      }}
-                    >
-                      {isTop && (
-                        <div style={{ position: 'absolute', top: -22, left: '50%', transform: 'translateX(-50%)', background: '#00B5BD', color: '#fff', fontSize: 8, fontWeight: 800, borderRadius: 20, padding: '2px 6px', whiteSpace: 'nowrap' }}>
-                          TOP
-                        </div>
-                      )}
-                    </motion.div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Divider line */}
-            <div style={{ height: 2, background: '#dde8f0', margin: '0 4px' }} />
-
-            {/* X-axis labels */}
-            <div style={{ display: 'flex', gap: 10, padding: '10px 4px 4px', overflowX: 'auto' }}>
-              {data.equipmentRanking.map((eq, i) => (
-                <div key={eq.id} style={{ flex: '1 0 48px', minWidth: 48, textAlign: 'center' }}>
-                  <div style={{ fontSize: 18, lineHeight: 1.2 }}>{eq.icon}</div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: i === 0 ? '#003B5C' : '#4a6278', lineHeight: 1.3, marginTop: 2, wordBreak: 'break-word' }}>
-                    {eq.name.length > 10 ? eq.name.slice(0, 10) + '…' : eq.name}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Most requested callout */}
-            {data.equipmentRanking[0] && (
-              <div style={{ marginTop: 12, padding: '10px 14px', borderRadius: 10, background: 'linear-gradient(135deg,#f0fffe,#e0f7f4)', border: '1.5px solid #b2e8ea', display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ fontSize: 24 }}>{data.equipmentRanking[0].icon}</span>
-                <div>
-                  <p style={{ fontSize: 13, fontWeight: 800, color: '#003B5C', margin: 0 }}>
-                    {data.equipmentRanking[0].name}
-                  </p>
-                  <p style={{ fontSize: 12, color: '#4a6278', margin: '2px 0 0' }}>
-                    Most requested &mdash; <strong style={{ color: '#00B5BD' }}>{data.equipmentRanking[0].count} booking{data.equipmentRanking[0].count !== 1 ? 's' : ''}</strong> in the last 30 days
-                  </p>
-                </div>
-                <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 800, background: '#00B5BD', color: '#fff', borderRadius: 20, padding: '3px 10px', letterSpacing: 1, textTransform: 'uppercase' }}>#1</span>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
 
       {/* Peak hours heatmap */}
       <section>
@@ -1233,59 +1641,63 @@ const InsightsPanel = () => {
         </div>
       </section>
 
-      {/* Busiest days bar chart */}
+      {/* Machine Usage chart */}
       <section>
-        <p className="section-title mb-3">📅 Busiest Days of the Week</p>
+        <p className="section-title mb-3">🔬 Machine Usage (Last 30 Days)</p>
         <div className="card">
-          {(() => {
-            const maxDay = Math.max(...data.busiestDays.map(d => d.count), 1);
-            const CHART_H = 130;
+          {data.equipmentRanking.length === 0 ? (
+            <p className="text-[11px] text-text-muted italic text-center py-4">No booking data yet.</p>
+          ) : (() => {
+            const maxCount = Math.max(...data.equipmentRanking.map(e => e.count), 1);
+            const barColors = [
+              'linear-gradient(90deg,#00B5BD,#007b82)',
+              'linear-gradient(90deg,#003B5C,#0059a0)',
+              'linear-gradient(90deg,#27ae60,#1e8449)',
+              'linear-gradient(90deg,#e67e22,#d35400)',
+              'linear-gradient(90deg,#8e44ad,#6c3483)',
+              'linear-gradient(90deg,#e74c3c,#c0392b)',
+              'linear-gradient(90deg,#1abc9c,#148f77)',
+              'linear-gradient(90deg,#f39c12,#d68910)',
+            ];
             return (
-              <>
-                <div className="flex gap-2 items-end" style={{ height: CHART_H }}>
-                  {data.busiestDays.map(({ day, count }) => {
-                    const barH = count > 0 ? Math.max(Math.round((count / maxDay) * CHART_H), 8) : 3;
-                    const isBusiest = count === maxDay && count > 0;
-                    return (
-                      <div key={day} className="flex-1 flex flex-col items-center justify-end">
-                        {count > 0 && (
-                          <span className="text-[9px] font-mono mb-1" style={{ color: isBusiest ? '#00bfa5' : '#8b949e' }}>
-                            {count}
-                          </span>
-                        )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {data.equipmentRanking.map((eq, i) => {
+                  const pct = maxCount > 0 ? Math.max((eq.count / maxCount) * 100, eq.count > 0 ? 4 : 0) : 0;
+                  const isTop = i === 0 && eq.count > 0;
+                  return (
+                    <div key={eq.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      {/* Machine name */}
+                      <div style={{ width: 120, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 16, flexShrink: 0 }}>{eq.icon}</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#003B5C', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          title={eq.name}>{eq.name}</span>
+                      </div>
+                      {/* Bar track */}
+                      <div style={{ flex: 1, background: '#EEF4FB', borderRadius: 20, height: 18, overflow: 'hidden', position: 'relative' }}>
                         <motion.div
-                          initial={{ height: 0 }}
-                          animate={{ height: barH }}
-                          transition={{ duration: 0.55, ease: 'easeOut' }}
-                          className="w-full rounded-t"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${pct}%` }}
+                          transition={{ duration: 0.7, ease: 'easeOut', delay: i * 0.06 }}
                           style={{
-                            background: isBusiest
-                              ? 'linear-gradient(to top, #00bfa5, #4dd0c4)'
-                              : count > 0
-                                ? 'rgba(0,191,165,0.28)'
-                        : 'rgba(200,216,232,0.5)',
-                            boxShadow: isBusiest ? '0 0 8px rgba(0,191,165,0.4)' : 'none',
+                            height: '100%', borderRadius: 20,
+                            background: barColors[i % barColors.length],
+                            boxShadow: isTop ? '0 0 8px rgba(0,181,189,0.4)' : 'none',
+                            position: 'relative',
                           }}
-                          title={`${day}: ${count} booking${count !== 1 ? 's' : ''}`}
                         />
                       </div>
-                    );
-                  })}
-                </div>
-                <div className="flex gap-2 mt-2">
-                  {data.busiestDays.map(({ day, count }) => {
-                    const isBusiest = count === maxDay && count > 0;
-                    return (
-                      <div key={day} className="flex-1 text-center">
-                        <span className="text-[9px] font-mono" style={{ color: isBusiest ? '#00bfa5' : '#8b949e', fontWeight: isBusiest ? 700 : 400 }}>
-                          {day.slice(0, 3)}
-                        </span>
+                      {/* Count + TOP badge */}
+                      <div style={{ width: 52, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: isTop ? '#00B5BD' : '#4a6278' }}>{eq.count}</span>
+                        {isTop && (
+                          <span style={{ fontSize: 8, fontWeight: 800, background: '#00B5BD', color: '#fff', borderRadius: 4, padding: '1px 5px', letterSpacing: 0.5 }}>TOP</span>
+                        )}
                       </div>
-                    );
-                  })}
-                </div>
-                <p className="text-[10px] text-text-muted mt-3">Bright teal = busiest day · faded = lighter activity</p>
-              </>
+                    </div>
+                  );
+                })}
+                <p className="text-[10px] text-text-muted mt-2">Number of confirmed + completed bookings per machine</p>
+              </div>
             );
           })()}
         </div>
@@ -1428,52 +1840,15 @@ const TechDashboard = () => {
         ))}
       </div>
 
-      {/* Pending reservations */}
+      {/* Reservations — pending, confirmed, rescheduled */}
       <section>
-        <p className="section-title">{t('dashboard.tech.pendingRequests')}</p>
+        <p className="section-title">📋 Booking Requests &amp; Active Reservations</p>
         {pendingReservations.length === 0 ? (
-          <div className="card text-center text-text-muted text-xs font-mono py-8">No pending requests</div>
+          <div className="card text-center text-text-muted text-xs font-mono py-8">No active reservation requests</div>
         ) : (
           <div className="space-y-3">
             {pendingReservations.map(r => (
-              <motion.div key={r.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card">
-                <div className="flex items-start justify-between flex-wrap gap-3">
-              <div className="flex-1 min-w-0">
-                    <p style={{ fontWeight: 800, fontSize: 15, color: '#003B5C', margin: '0 0 4px' }}>
-                      {r.equipment.icon} {r.equipment.name}
-                    </p>
-                    <p className="text-xs" style={{color:"#4a6278"}}>
-                      {r.user.firstName} {r.user.lastName} · {r.user.email}
-                    </p>
-                    <p className="text-xs mt-1" style={{color:"#4a6278"}}>
-                      Start: {format(new Date(r.startTime), 'PPp')}
-                    </p>
-                    <p className="text-xs" style={{color:"#4a6278"}}>
-                      End: &nbsp;&nbsp;{format(new Date(r.endTime), 'PPp')}
-                    </p>
-                    {r.experimentDescription && (
-                      <p className="text-xs mt-1 italic line-clamp-2" style={{color:"#7a94a8"}}>“{r.experimentDescription}”</p>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => reservationMutation.mutate({ id: r.id, action: 'confirm' })}
-                      className="flex items-center gap-1 btn-primary text-xs px-3 py-1.5"
-                    >
-                      <CheckCircle size={12} />
-                      {t('dashboard.tech.confirm')}
-                    </button>
-                    <button
-                      onClick={() => reservationMutation.mutate({ id: r.id, action: 'reject', reason: 'Rejected by technologist' })}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-mono
-                                 border border-status-rejected text-status-rejected hover:bg-status-rejected/10 transition-colors"
-                    >
-                      <XCircle size={12} />
-                      {t('dashboard.tech.reject')}
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
+              <ReservationCard key={r.id} r={r} reservationMutation={reservationMutation} queryClient={queryClient} t={t} />
             ))}
           </div>
         )}
@@ -1530,58 +1905,116 @@ const TechDashboard = () => {
             ))}
           </div>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+        {equipment.length === 0 && (
+          <div style={{ background:'#f0fffe', border:'2px dashed #00B5BD44', borderRadius:16, padding:'32px 24px', marginBottom:20, textAlign:'center' }}>
+            <div style={{ fontSize:48, marginBottom:12 }}>🔬</div>
+            <h3 style={{ color:'#003B5C', fontWeight:800, fontSize:18, margin:'0 0 8px' }}>No equipment registered yet</h3>
+            <p style={{ color:'#7a94a8', fontSize:13, margin:'0 0 20px', lineHeight:1.6 }}>
+              Click <strong style={{color:'#00B5BD'}}>Add Equipment</strong> below to register your first machine.<br/>
+              Once added, you can upload a photo, set the name &amp; description, manage availability, add tutorial videos and reference materials.
+            </p>
+          </div>
+        )}
+
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(340px,1fr))', gap:20 }}>
+          {/* Add equipment card always first */}
+          <AddEquipmentCard />
           {equipment.map(eq => (
-            <div key={eq.id} className="card"
-              style={{ borderTop: eq.maintenanceMode ? '3px solid #e67e22' : '3px solid #00B5BD' }}>
-              {/* Delete button */}
-              <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:6 }}>
-                {eq.maintenanceMode && <AlertTriangle size={12} className="text-status-pending" style={{ marginRight:'auto' }} />}
-                <button
-                  onClick={async () => {
-                    if (!window.confirm(`Delete "${eq.name}"? This cannot be undone.`)) return;
-                    try {
-                      await api.delete(`/equipment/${eq.id}`);
-                      toast.success(`${eq.name} deleted.`);
-                      queryClient.invalidateQueries(['dashboard-tech']);
-                      queryClient.invalidateQueries(['equipment']);
-                    } catch (err) {
-                      toast.error(err.response?.data?.message || 'Failed to delete.');
-                    }
-                  }}
-                  style={{ fontSize:10, fontWeight:700, color:'#e74c3c', background:'#fff5f5', border:'1px solid #fcc', borderRadius:8, padding:'3px 10px', cursor:'pointer' }}
-                >
-                  🗑 Delete
-                </button>
+            <div key={eq.id} style={{
+              background:'#fff', borderRadius:20,
+              border: eq.maintenanceMode ? '2px solid #e67e2244' : '2px solid #e8f4fb',
+              boxShadow:'0 2px 16px rgba(0,59,92,0.07)',
+              overflow:'hidden',
+            }}>
+
+              {/* ── Card header ── */}
+              <div style={{ background: eq.maintenanceMode ? 'linear-gradient(135deg,#e67e22,#f39c12)' : 'linear-gradient(135deg,#003B5C,#00B5BD)', padding:'14px 18px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  {eq.maintenanceMode && <AlertTriangle size={14} color="#fff" />}
+                  <span style={{ fontSize:13, fontWeight:800, color:'#fff', letterSpacing:0.3 }}>{eq.name}</span>
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ fontSize:10, fontWeight:700, background:'rgba(255,255,255,0.2)', color:'#fff', borderRadius:20, padding:'2px 10px' }}>
+                    {eq.activeNow > 0 ? `🟡 In Use` : eq.maintenanceMode ? '🔧 Maintenance' : '🟢 Available'}
+                  </span>
+                  <button
+                    onClick={async () => {
+                      if (!window.confirm(`Delete "${eq.name}"? This cannot be undone.`)) return;
+                      try {
+                        await api.delete(`/equipment/${eq.id}`);
+                        toast.success(`${eq.name} deleted.`);
+                        queryClient.invalidateQueries(['dashboard-tech']);
+                        queryClient.invalidateQueries(['equipment']);
+                      } catch (err) {
+                        toast.error(err.response?.data?.message || 'Failed to delete.');
+                      }
+                    }}
+                    style={{ fontSize:11, fontWeight:700, color:'#fff', background:'rgba(231,76,60,0.75)', border:'none', borderRadius:8, padding:'4px 10px', cursor:'pointer' }}
+                  >
+                    🗑
+                  </button>
+                </div>
               </div>
-              {/* English */}
-              <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:2 }}>
-                <span style={{ fontSize:9, fontWeight:800, color:'#9ab0c4', letterSpacing:1.5, textTransform:'uppercase' }}>EN</span>
+
+              <div style={{ padding:'20px 20px 16px' }}>
+
+                {/* ── 1. Machine Photo ── */}
+                <div style={{ marginBottom:20, padding:'16px', background:'#f8fbff', borderRadius:14, border:'1.5px solid #e8f4fb' }}>
+                  <p style={{ fontSize:11, fontWeight:800, color:'#003B5C', letterSpacing:1.5, textTransform:'uppercase', margin:'0 0 12px', display:'flex', alignItems:'center', gap:6 }}>
+                    📷 Machine Photo
+                    <span style={{ fontSize:10, color:'#9ab0c4', fontWeight:500, textTransform:'none', letterSpacing:0 }}>— shown on homepage &amp; booking page</span>
+                  </p>
+                  <ImageUpload equipmentId={eq.id} currentImageUrl={eq.imageUrl || null} />
+                </div>
+
+                {/* ── 2. Machine Info ── */}
+                <div style={{ marginBottom:20, padding:'16px', background:'#f8fbff', borderRadius:14, border:'1.5px solid #e8f4fb' }}>
+                  <p style={{ fontSize:11, fontWeight:800, color:'#003B5C', letterSpacing:1.5, textTransform:'uppercase', margin:'0 0 12px' }}>📝 Machine Information</p>
+
+                  <div style={{ marginBottom:10 }}>
+                    <span style={{ fontSize:9, fontWeight:800, color:'#9ab0c4', letterSpacing:1.5, textTransform:'uppercase', display:'block', marginBottom:4 }}>English</span>
+                    <EquipmentNameEditor equipmentId={eq.id} currentName={eq.name} />
+                    <EquipmentDescriptionEditor equipmentId={eq.id} currentDescription={eq.description} />
+                  </div>
+
+                  <div style={{ borderTop:'1px dashed #dde8f0', paddingTop:10 }}>
+                    <span style={{ fontSize:9, fontWeight:800, color:'#00B5BD', letterSpacing:1.5, textTransform:'uppercase', display:'block', marginBottom:4 }}>Français</span>
+                    <FieldEditor equipmentId={eq.id} field="nameFr" currentValue={eq.nameFr} label="Nom (FR)" />
+                    <FieldEditor equipmentId={eq.id} field="descriptionFr" currentValue={eq.descriptionFr} label="Description (FR)" multiline />
+                  </div>
+
+                  <div style={{ marginTop:10, display:'flex', gap:16, fontSize:11, color:'#9ab0c4' }}>
+                    <span>📊 {eq.reservationsThisMonth} bookings (30 days)</span>
+                    <span>⚡ {eq.activeNow} active now</span>
+                  </div>
+
+                  <div style={{ borderTop:'1px dashed #dde8f0', paddingTop:10, marginTop:10 }}>
+                    <span style={{ fontSize:9, fontWeight:800, color:'#003B5C', letterSpacing:1.5, textTransform:'uppercase', display:'block', marginBottom:6 }}>Supervisor In Charge</span>
+                    <SupervisorPicker equipmentId={eq.id} currentPersonInChargeId={eq.personInChargeId} />
+                  </div>
+                </div>
+
+                {/* ── 3. Availability ── */}
+                <div style={{ marginBottom:20, padding:'16px', background:'#f8fbff', borderRadius:14, border:'1.5px solid #e8f4fb' }}>
+                  <p style={{ fontSize:11, fontWeight:800, color:'#003B5C', letterSpacing:1.5, textTransform:'uppercase', margin:'0 0 12px' }}>⚙️ Availability</p>
+                  <MaintenanceToggle equipmentId={eq.id} maintenanceMode={eq.maintenanceMode} maintenanceNote={eq.maintenanceNote} />
+                </div>
+
+                {/* ── 4. Tutorial Videos ── */}
+                <div style={{ marginBottom:20, padding:'16px', background:'#f8fbff', borderRadius:14, border:'1.5px solid #e8f4fb' }}>
+                  <p style={{ fontSize:11, fontWeight:800, color:'#003B5C', letterSpacing:1.5, textTransform:'uppercase', margin:'0 0 12px' }}>🎬 Tutorial Videos</p>
+                  <VideosManager equipmentId={eq.id} currentVideos={eq.videos || []} />
+                </div>
+
+                {/* ── 5. Reference Materials ── */}
+                <div style={{ padding:'16px', background:'#f8fbff', borderRadius:14, border:'1.5px solid #e8f4fb' }}>
+                  <p style={{ fontSize:11, fontWeight:800, color:'#003B5C', letterSpacing:1.5, textTransform:'uppercase', margin:'0 0 12px' }}>📎 Reference Materials</p>
+                  <MaterialsManager equipmentId={eq.id} currentMaterials={eq.materials || []} />
+                </div>
+
               </div>
-              <EquipmentNameEditor equipmentId={eq.id} currentName={eq.name} />
-              <EquipmentDescriptionEditor equipmentId={eq.id} currentDescription={eq.description} />
-              {/* French */}
-              <div style={{ borderTop:'1px dashed #dde8f0', paddingTop:6, marginTop:4 }}>
-                <span style={{ fontSize:9, fontWeight:800, color:'#00B5BD', letterSpacing:1.5, textTransform:'uppercase' }}>FR</span>
-              </div>
-              <FieldEditor equipmentId={eq.id} field="nameFr" currentValue={eq.nameFr} label="Nom (FR)" />
-              <FieldEditor equipmentId={eq.id} field="descriptionFr" currentValue={eq.descriptionFr} label="Description (FR)" multiline />
-              <p style={{ fontSize: 12, color: '#00B5BD', margin: '2px 0' }}>
-                {eq.reservationsThisMonth} {t('dashboard.tech.utilization')}
-              </p>
-              <p style={{ fontSize: 12, color: '#7a94a8', margin: 0 }}>In use now: {eq.activeNow}</p>
-              <MaintenanceToggle
-                equipmentId={eq.id}
-                maintenanceMode={eq.maintenanceMode}
-                maintenanceNote={eq.maintenanceNote}
-              />
-              <ImageUpload equipmentId={eq.id} currentImageUrl={eq.imageUrl || null} />
-              <VideosManager equipmentId={eq.id} currentVideos={eq.videos || []} />
-              <MaterialsManager equipmentId={eq.id} currentMaterials={eq.materials || []} />
             </div>
           ))}
-          {/* Add new equipment slot */}
-          <AddEquipmentCard />
         </div>
       </section>
       </div>

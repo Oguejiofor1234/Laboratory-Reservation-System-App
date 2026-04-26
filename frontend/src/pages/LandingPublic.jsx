@@ -569,7 +569,7 @@ const LandingPublic = () => {
       }}>
         {/* Dark overlay when cover photo is set */}
         {coverImageUrl && (
-          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,20,40,0.35) 0%, rgba(0,40,60,0.25) 60%, rgba(0,20,40,0.4) 100%)' }} />
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,20,40,0.10) 0%, rgba(0,40,60,0.08) 60%, rgba(0,20,40,0.18) 100%)' }} />
         )}
         {/* Decorative circles (shown only without cover) */}
         {!coverImageUrl && <div style={{ position: 'absolute', right: -80, top: -80, width: 400, height: 400, borderRadius: '50%', background: 'rgba(255,255,255,0.05)' }} />}

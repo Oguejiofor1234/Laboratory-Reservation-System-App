@@ -21,6 +21,7 @@ enum ReservationStatus {
   CANCELLED
   COMPLETED
   REJECTED
+  RESCHEDULED
 }
 
 enum TrainingStatus {
@@ -114,6 +115,9 @@ model Reservation {
   cancelReason          String?
   cancelledAt           DateTime?
   isFirstTime           Boolean           @default(false)
+  proposedStartTime     DateTime?
+  proposedEndTime       DateTime?
+  rescheduleReason      String?
   createdAt             DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
 

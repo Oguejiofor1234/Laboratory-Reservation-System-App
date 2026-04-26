@@ -1,7 +1,7 @@
 {
   "AWSEBDockerrunVersion": "1",
   "Image": {
-    "Name": "REPLACE_WITH_YOUR_DOCKERHUB_USERNAME/lab1708-backend:latest",
+    "Name": "REPLACE_WITH_YOUR_DOCKERHUB_USERNAME/lab1780-backend:latest",
     "Update": "true"
   },
   "Ports": [

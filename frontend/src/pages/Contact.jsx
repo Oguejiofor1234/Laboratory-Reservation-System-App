@@ -183,7 +183,7 @@ const Contact = () => {
 
             {[
               { icon: '📧', label: 'Email', value: 'miracle2cool247@gmail.com' },
-              { icon: '🏛️', label: 'Location', value: 'Lab 1708, School of Engineering' },
+              { icon: '🏛️', label: 'Location', value: 'Lab 1780, School of Engineering' },
               { icon: '🕐', label: 'Response time', value: 'Within 1–2 business days' },
             ].map(item => (
               <div key={item.label} style={{ marginBottom: 20 }}>

@@ -30,6 +30,16 @@ router.patch('/:id/cancel', [
   validate,
 ], audit('CANCEL', 'reservation'), reservationController.cancel);
 
+router.patch('/:id/reschedule', restrictTo('TECHNOLOGIST', 'ADMIN'), [
+  body('proposedStartTime').isISO8601().withMessage('Valid proposed start time required'),
+  body('proposedEndTime').isISO8601().withMessage('Valid proposed end time required'),
+  body('reason').optional().isString(),
+  validate,
+], audit('RESCHEDULE', 'reservation'), reservationController.reschedule);
+
+router.patch('/:id/accept-reschedule', reservationController.acceptReschedule);
+router.patch('/:id/reject-reschedule', reservationController.rejectReschedule);
+
 router.post('/waitlist', requireVerified, [
   body('equipmentId').notEmpty(),
   body('requestedDate').isISO8601(),

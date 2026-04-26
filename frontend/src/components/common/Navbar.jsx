@@ -62,7 +62,6 @@ const Navbar = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 3, background: '#f4f6f8', borderRadius: 32, padding: '4px 6px' }}>
 
           <NavItem to="/" active={is('/')}>Home</NavItem>
-          <NavItem to="/contact" active={is('/contact')}>Contact</NavItem>
 
           {user && (
             <>
@@ -128,7 +127,6 @@ const Navbar = () => {
             style={{ borderTop: `1px solid ${C.border}`, background: C.white, overflow: 'hidden' }}>
             <div style={{ padding: '12px 24px', display: 'flex', flexDirection: 'column', gap: 4 }}>
               <NavItem to="/" active={is('/')} onClick={() => setMobileOpen(false)}>Home</NavItem>
-              <NavItem to="/contact" active={is('/contact')} onClick={() => setMobileOpen(false)}>Contact</NavItem>
               {user ? (
                 <>
                   <NavItem to="/book" active={is('/book')} onClick={() => setMobileOpen(false)}>{t('nav.book')}</NavItem>

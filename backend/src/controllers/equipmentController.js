@@ -21,7 +21,7 @@ exports.getAll = async (req, res) => {
   const enriched = await Promise.all(
     equipment.map(async (eq) => {
       // Run all per-equipment queries in parallel
-      const [activeReservations, nextReservation, confirmedNext] = await Promise.all([
+      const [activeReservations, upcomingReservations, upcomingTraining] = await Promise.all([
         // Active reservations overlapping right now
         prisma.reservation.findMany({
           where: {
@@ -33,8 +33,8 @@ exports.getAll = async (req, res) => {
           include: { user: { select: { firstName: true, lastName: true } } },
           orderBy: { endTime: 'asc' },
         }),
-        // Next upcoming reservation (starts in future)
-        prisma.reservation.findFirst({
+        // ALL upcoming reservations (starts in future)
+        prisma.reservation.findMany({
           where: {
             equipmentId: eq.id,
             status: { in: ['PENDING', 'CONFIRMED'] },
@@ -42,37 +42,56 @@ exports.getAll = async (req, res) => {
           },
           include: { user: { select: { firstName: true, lastName: true } } },
           orderBy: { startTime: 'asc' },
+          take: 8,
         }),
-        // Next CONFIRMED reservation specifically
-        prisma.reservation.findFirst({
+        // ALL upcoming training sessions for this equipment
+        prisma.trainingSession.findMany({
           where: {
             equipmentId: eq.id,
-            status: 'CONFIRMED',
-            startTime: { gt: now },
+            status: { in: ['PENDING', 'CONFIRMED'] },
+            scheduledAt: { gt: now },
           },
-          include: { user: { select: { firstName: true, lastName: true } } },
-          orderBy: { startTime: 'asc' },
+          include: { student: { select: { firstName: true, lastName: true } } },
+          orderBy: { scheduledAt: 'asc' },
+          take: 8,
         }),
       ]);
 
       // Current user (first active reservation)
       const currentRes = activeReservations[0] || null;
-
-      // Availability date: when last active reservation ends
       const lastActive = activeReservations[activeReservations.length - 1] || null;
+
+      // Merge reservations + training sessions, sorted by start time
+      const allUpcoming = [
+        ...upcomingReservations.map(r => ({
+          type:      'booking',
+          userName:  `${r.user.firstName} ${r.user.lastName}`,
+          startTime: r.startTime,
+          endTime:   r.endTime,
+          status:    r.status,
+        })),
+        ...upcomingTraining.map(s => ({
+          type:      'training',
+          userName:  `${s.student.firstName} ${s.student.lastName}`,
+          startTime: s.scheduledAt,
+          endTime:   new Date(new Date(s.scheduledAt).getTime() + 60 * 60 * 1000), // assume 1h
+          status:    s.status,
+        })),
+      ].sort((a, b) => new Date(a.startTime) - new Date(b.startTime)).slice(0, 10);
 
       return {
         ...eq,
-        availableNow: Math.max(0, eq.totalUnits - activeReservations.length),
-        currentUser: currentRes
+        availableNow:   Math.max(0, eq.totalUnits - activeReservations.length),
+        currentUser:    currentRes
           ? { name: `${currentRes.user.firstName} ${currentRes.user.lastName}`, startTime: currentRes.startTime, endTime: currentRes.endTime }
           : null,
-        availableFrom: lastActive ? lastActive.endTime : null,
-        nextReservation: nextReservation
-          ? { userName: `${nextReservation.user.firstName} ${nextReservation.user.lastName}`, startTime: nextReservation.startTime, endTime: nextReservation.endTime, status: nextReservation.status }
-          : null,
-        confirmedNext: confirmedNext
-          ? { userName: `${confirmedNext.user.firstName} ${confirmedNext.user.lastName}`, startTime: confirmedNext.startTime, endTime: confirmedNext.endTime }
+        availableFrom:  lastActive ? lastActive.endTime : null,
+        upcomingBookings: allUpcoming,
+        // Keep confirmedNext for backward-compat (LandingPublic uses it)
+        confirmedNext: upcomingReservations.find(r => r.status === 'CONFIRMED')
+          ? { userName: `${upcomingReservations.find(r => r.status === 'CONFIRMED').user.firstName} ${upcomingReservations.find(r => r.status === 'CONFIRMED').user.lastName}`,
+              startTime: upcomingReservations.find(r => r.status === 'CONFIRMED').startTime,
+              endTime:   upcomingReservations.find(r => r.status === 'CONFIRMED').endTime }
           : null,
       };
     })

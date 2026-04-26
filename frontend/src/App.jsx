@@ -13,7 +13,6 @@ import VerifyEmail from './pages/VerifyEmail';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import NotFound from './pages/NotFound';
-import Contact  from './pages/Contact';
 
 // Dark-themed shell for authenticated/app routes
 const AppShell = ({ children }) => (
@@ -47,8 +46,6 @@ const App = () => {
         <Route path="/verify-email/:token" element={<AppShell><VerifyEmail /></AppShell>} />
         <Route path="/forgot-password" element={<AppShell><ForgotPassword /></AppShell>} />
         <Route path="/reset-password/:token" element={<AppShell><ResetPassword /></AppShell>} />
-        <Route path="/contact" element={<Contact />} />
-
         {/* Protected app routes */}
         <Route element={<ProtectedRoute />}>
           <Route path="/book" element={<AppShell><BookingFlow /></AppShell>} />

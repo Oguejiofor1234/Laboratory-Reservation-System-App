@@ -193,12 +193,13 @@ const RegisterForm = ({ onSwitch }) => {
   const [verified, setVerified] = useState(false);
   const [resending, setResending] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [selectedRole, setSelectedRole] = useState('STUDENT');
   const { register, handleSubmit, formState: { errors } } = useForm();
 
   const onSubmit = async (data) => {
     setLoading(true);
     try {
-      const res = await registerUser({ ...data, role: 'STUDENT' });
+      const res = await registerUser({ ...data, role: selectedRole });
       setRegEmail(data.email);
       const url = res?.verifyUrl || '';
       setVerifyToken(url.split('/verify-email/')[1] || '');
@@ -261,7 +262,27 @@ const RegisterForm = ({ onSwitch }) => {
   return (
     <motion.div key="register" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }}>
       <h2 style={{ color: '#003B5C', fontSize: 24, fontWeight: 900, marginBottom: 4 }}>Create account 🧪</h2>
-      <p style={{ color: '#aaa', fontSize: 13, marginBottom: 22 }}>Join REGAL Laboratory — free & instant</p>
+      <p style={{ color: '#aaa', fontSize: 13, marginBottom: 16 }}>Join REGAL Laboratory — free &amp; instant</p>
+
+      {/* Role selector */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 18 }}>
+        {[
+          { role: 'STUDENT', icon: '🎓', label: 'Student', sub: 'Book lab equipment' },
+          { role: 'TECHNOLOGIST', icon: '🔬', label: 'Supervisor', sub: 'Manage reservations' },
+        ].map(({ role, icon, label, sub }) => (
+          <button key={role} type="button" onClick={() => setSelectedRole(role)}
+            style={{
+              padding: '12px 10px', borderRadius: 12, border: `2px solid ${selectedRole === role ? '#00B5BD' : '#e8e8e8'}`,
+              background: selectedRole === role ? '#f0fffe' : '#fafafa',
+              cursor: 'pointer', textAlign: 'center', transition: 'all 0.18s',
+            }}>
+            <div style={{ fontSize: 22, marginBottom: 4 }}>{icon}</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: selectedRole === role ? '#003B5C' : '#666' }}>{label}</div>
+            <div style={{ fontSize: 10, color: '#aaa' }}>{sub}</div>
+          </button>
+        ))}
+      </div>
+
       <form onSubmit={handleSubmit(onSubmit)}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Field label="First Name" placeholder="John" error={errors.firstName?.message} icon="👤"
