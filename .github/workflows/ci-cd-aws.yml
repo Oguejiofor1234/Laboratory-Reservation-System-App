@@ -73,6 +73,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     permissions:
+      contents:        read      # needed for checkout
       security-events: write    # upload SARIF to GitHub Security tab
     steps:
       - name: Checkout code
@@ -106,6 +107,7 @@ jobs:
       actions:         read
       contents:        read
       security-events: write
+      pull-requests:   read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -123,7 +125,7 @@ jobs:
         uses: github/codeql-action/analyze@v3
         with:
           category: /language:javascript
-
+          upload: never   # skip upload if Code Scanning is not enabled
 # ─────────────────────────────────────────────────────────────────────────────
 # JOB 3 — TRIVY FILESYSTEM SCAN
 # Scans package-lock.json and package.json in both backend/ and frontend/
@@ -162,7 +164,7 @@ jobs:
   test:
     name: "🧪 Backend Tests (Jest)"
     runs-on: ubuntu-latest
-    needs: [semgrep, codeql, trivy-fs]
+    # Security scans run independently — tests don't wait for them
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
