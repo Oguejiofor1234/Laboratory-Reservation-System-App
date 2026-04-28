@@ -33,10 +33,15 @@ jest.mock('../src/services/emailService', () => ({
 }));
 
 jest.mock('../src/services/notificationService', () => ({
+  notifyStudentBookingSubmitted: jest.fn(),
   notifyTechsNewBooking: jest.fn(),
+  notifyPersonInCharge: jest.fn(),
   notifyBookingConfirmed: jest.fn(),
   notifyBookingRejected: jest.fn(),
   notifyBookingCancelled: jest.fn(),
+  notifySupervisorCancellation: jest.fn(),
+  notifyStudentBookingRescheduled: jest.fn(),
+  notifySupervisorRescheduleResponse: jest.fn(),
 }));
 
 jest.mock('../src/config/socket', () => ({
@@ -125,23 +130,33 @@ describe('PATCH /api/reservations/:id/cancel', () => {
     });
   });
 
-  it('should reject cancellation within 24 hours for students', async () => {
+  it('should allow students to cancel at any time', async () => {
     const startTime = new Date(Date.now() + 1 * 60 * 60 * 1000); // 1 hour from now
     prisma.reservation.findUnique.mockResolvedValue({
       id: 'r1',
       userId: 'u1',
       status: 'CONFIRMED',
       startTime,
+      equipmentId: 'eq1',
       equipment: { name: 'Laser Cutter' },
       user: { id: 'u1', email: 'u@test.com', firstName: 'John', lastName: 'Doe' },
+      personInCharge: null,
+      personInChargeId: null,
     });
+    prisma.reservation.update.mockResolvedValue({
+      id: 'r1', status: 'CANCELLED',
+      equipmentId: 'eq1',
+      equipment: { name: 'Laser Cutter' },
+      user: { id: 'u1', email: 'u@test.com', firstName: 'John', lastName: 'Doe' },
+      personInCharge: null, personInChargeId: null,
+    });
+    prisma.waitlist.findFirst.mockResolvedValue(null);
 
     const res = await request(app)
       .patch('/api/reservations/r1/cancel')
       .set(authHeader('STUDENT'))
       .send({ reason: 'Changed plans' });
-    expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/24 hour/i);
+    expect(res.status).toBe(200);
   });
 
   it('should allow technologist to cancel within 24 hours', async () => {
