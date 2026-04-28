@@ -34,6 +34,10 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY prisma ./prisma
 
+# Create uploads directory with correct ownership BEFORE switching user
+RUN mkdir -p uploads/equipment uploads/covers \
+    && chown -R nodejs:nodejs uploads
+
 # Copy application code
 COPY --chown=nodejs:nodejs src ./src
 COPY --chown=nodejs:nodejs server.js ./

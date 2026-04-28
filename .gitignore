@@ -59,3 +59,8 @@ backend/prisma/migrations/
 # Vite
 frontend/.vite/
 awscliv2.zip
+
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml

@@ -1,0 +1,33 @@
+# ── Exclude local dev files from Elastic Beanstalk deployment bundle ──────────
+# EB only needs Dockerrun.aws.json — everything else below is excluded.
+
+# Local Docker Compose files (dev/prod) — EB uses Dockerrun.aws.json instead
+docker-compose.yml
+docker-compose.prod.yml
+
+# Source code (not needed — Docker Hub image is already built by CI/CD)
+backend/
+frontend/
+nginx/
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Local config & secrets
+.env
+**/.env
+*.env
+
+# Git
+.git/
+.gitignore
+
+# IDE & OS
+.vscode/
+.idea/
+*.DS_Store
+*.log
+
+# CI/CD configs (not needed on the instance)
+.github/
