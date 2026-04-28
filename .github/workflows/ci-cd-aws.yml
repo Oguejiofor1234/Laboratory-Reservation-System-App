@@ -45,13 +45,17 @@
 #                             (comma-separated, one per AZ)
 # ============================================================
 
+# ── DISABLED ── Switch back to push trigger when deploying to AWS ──────────────
+# To re-enable: change the trigger below back to:
+#   push:
+#     branches: [main]
+#   pull_request:
+#     branches: [main]
+# ────────────────────────────────────────────────────────────────────────────────
 name: CI/CD → AWS
 
 on:
-  push:
-    branches: [main]          # full pipeline: CI + CD + deploy
-  pull_request:
-    branches: [main]          # CI only (deploy job skipped on PRs)
+  workflow_dispatch:   # manual trigger only — won't run on git push
 
 env:
   BACKEND_IMAGE:  ${{ secrets.DOCKERHUB_USERNAME }}/lab1708-backend
