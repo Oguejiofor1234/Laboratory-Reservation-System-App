@@ -55,11 +55,16 @@ const timesOverlap = (start1, end1, start2, end2) => start1 < end2 && end1 > sta
 /**
  * Set refresh token as httpOnly cookie
  */
+// secure:true requires HTTPS — only enable when COOKIE_SECURE env var is set.
+// On HTTP deployments (EB without TLS) leave COOKIE_SECURE unset so the
+// browser stores the cookie. Set COOKIE_SECURE=true once HTTPS is configured.
+const COOKIE_SECURE = process.env.COOKIE_SECURE === 'true';
+
 const setRefreshCookie = (res, token) => {
   res.cookie('refreshToken', token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    secure:   COOKIE_SECURE,
+    sameSite: COOKIE_SECURE ? 'strict' : 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
 };
@@ -70,8 +75,8 @@ const setRefreshCookie = (res, token) => {
 const clearRefreshCookie = (res) => {
   res.clearCookie('refreshToken', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    secure:   COOKIE_SECURE,
+    sameSite: COOKIE_SECURE ? 'strict' : 'lax',
   });
 };
 
