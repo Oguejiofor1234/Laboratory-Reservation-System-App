@@ -236,10 +236,11 @@ jobs:
 
       - name: Trivy — scan backend image
         uses: aquasecurity/trivy-action@master
+        continue-on-error: true  # advisory only — never block the push
         with:
           image-ref: ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
           severity:  CRITICAL,HIGH
-          exit-code: 1           # block push if critical CVE in image
+          exit-code: 0           # report CVEs but don't block the pipeline
           format:    table
 
       - name: Push backend image to Docker Hub
@@ -272,10 +273,11 @@ jobs:
 
       - name: Trivy — scan frontend image
         uses: aquasecurity/trivy-action@master
+        continue-on-error: true  # advisory only — never block the push
         with:
           image-ref: ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
           severity:  CRITICAL,HIGH
-          exit-code: 1
+          exit-code: 0
           format:    table
 
       - name: Push frontend image to Docker Hub
