@@ -13,11 +13,24 @@ services:
   backend:
     image: DOCKERHUB_USERNAME/lab1708-backend:latest
     restart: always
+    # Pass every EB environment property into the container.
+    # EB sets these as host env vars; docker-compose interpolates them.
     environment:
-      NODE_ENV: production
-      PORT: 5000
-      # All other secrets (DATABASE_URL, JWT_SECRET, etc.) are set as
-      # EB environment properties via AWS Console or eb setenv
+      NODE_ENV:              ${NODE_ENV}
+      PORT:                  ${PORT}
+      DATABASE_URL:          ${DATABASE_URL}
+      JWT_SECRET:            ${JWT_SECRET}
+      JWT_REFRESH_SECRET:    ${JWT_REFRESH_SECRET}
+      JWT_EXPIRES_IN:        ${JWT_EXPIRES_IN}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN}
+      EMAIL_HOST:            ${EMAIL_HOST}
+      EMAIL_PORT:            ${EMAIL_PORT}
+      EMAIL_SECURE:          ${EMAIL_SECURE}
+      EMAIL_USER:            ${EMAIL_USER}
+      EMAIL_PASS:            ${EMAIL_PASS}
+      EMAIL_FROM:            ${EMAIL_FROM}
+      CONTACT_RECIPIENT:     ${CONTACT_RECIPIENT}
+      CLIENT_URL:            ${CLIENT_URL}
     expose:
       - "5000"
 
