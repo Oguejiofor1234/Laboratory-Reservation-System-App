@@ -59,75 +59,13 @@ env:
   AWS_REGION:     ${{ secrets.AWS_REGION }}
 
 # ─────────────────────────────────────────────────────────────────────────────
-# JOB 1 — SEMGREP SAST
-# Static Application Security Testing.
-# Scans every .js and .jsx file for security anti-patterns before
-# any code runs anywhere. Checks: OWASP Top 10, exposed secrets,
-# SQL injection patterns, React XSS vectors, Node.js misuse.
-# continue-on-error: true keeps the pipeline moving even with findings.
-# Set to false when you want to enforce zero-tolerance for security issues.
+# JOB 1 — TRIVY FILESYSTEM SCAN
+# NOTE: Semgrep (requires SEMGREP_APP_TOKEN) and CodeQL (requires GitHub
+# Advanced Security to be enabled) have been removed to keep the pipeline
+# clean. Trivy covers CVE scanning for both dependencies and Docker images.
+# To re-add them, see the git history for the original configuration.
 # ─────────────────────────────────────────────────────────────────────────────
 jobs:
-  semgrep:
-    name: "🔍 Semgrep SAST"
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    permissions:
-      contents:        read      # needed for checkout
-      security-events: write    # upload SARIF to GitHub Security tab
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Run Semgrep security scan
-        uses: semgrep/semgrep-action@v1
-        with:
-          config: >-
-            p/security-audit
-            p/secrets
-            p/nodejs
-            p/react
-        env:
-          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
-        continue-on-error: true
-
-# ─────────────────────────────────────────────────────────────────────────────
-# JOB 2 — CODEQL ANALYSIS
-# GitHub's semantic code analysis. Models data flow through your
-# entire codebase to find: auth bypasses, path traversal, prototype
-# pollution, command injection, and other logic-level vulnerabilities
-# that simple pattern scanning cannot find.
-# Results visible in: GitHub repo → Security → Code scanning alerts
-# ─────────────────────────────────────────────────────────────────────────────
-  codeql:
-    name: "🔬 CodeQL Analysis"
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    permissions:
-      actions:         read
-      contents:        read
-      security-events: write
-      pull-requests:   read
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: javascript
-          queries: security-and-quality
-
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
-
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
-        with:
-          category: /language:javascript
-          upload: never   # skip upload if Code Scanning is not enabled
-# ─────────────────────────────────────────────────────────────────────────────
-# JOB 3 — TRIVY FILESYSTEM SCAN
 # Scans package-lock.json and package.json in both backend/ and frontend/
 # against the NVD CVE database. Catches vulnerable npm packages
 # (e.g. a known RCE in an Express middleware version) BEFORE they
