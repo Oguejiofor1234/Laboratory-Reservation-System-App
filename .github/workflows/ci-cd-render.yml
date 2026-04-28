@@ -44,73 +44,11 @@ env:
   FRONTEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/lab1708-frontend
 
 # ─────────────────────────────────────────────────────────────────────────────
-# JOB 1 — SEMGREP SAST
-# Static Application Security Testing: scans your JavaScript/JSX
-# source files for security anti-patterns BEFORE code runs anywhere.
-# Catches: hardcoded secrets, SQL injection, XSS, insecure configs, etc.
+# JOB 1 — TRIVY FILESYSTEM SCAN
+# NOTE: Semgrep (needs SEMGREP_APP_TOKEN) and CodeQL (needs GitHub
+# Advanced Security) removed. Trivy handles all CVE scanning.
 # ─────────────────────────────────────────────────────────────────────────────
 jobs:
-  semgrep:
-    name: "🔍 Semgrep SAST"
-    runs-on: ubuntu-latest
-    permissions:
-      security-events: write    # allows uploading SARIF results to GitHub Security tab
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Run Semgrep security scan
-        uses: semgrep/semgrep-action@v1
-        with:
-          # Ruleset breakdown:
-          #   p/security-audit  → OWASP Top 10 patterns
-          #   p/secrets         → exposed credentials / API keys
-          #   p/nodejs          → Node.js-specific vulnerabilities
-          #   p/react           → React/JSX-specific vulnerabilities
-          config: >-
-            p/security-audit
-            p/secrets
-            p/nodejs
-            p/react
-        env:
-          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
-        continue-on-error: true   # non-blocking: won't stop pipeline on findings
-                                  # change to false when ready for strict enforcement
-
-# ─────────────────────────────────────────────────────────────────────────────
-# JOB 2 — CODEQL ANALYSIS
-# GitHub's own semantic code analysis engine. Builds a model of your
-# code's data flow and finds vulnerabilities that pattern-matching misses:
-# auth bypasses, path traversal, prototype pollution, etc.
-# Results appear in: GitHub repo → Security → Code scanning alerts
-# ─────────────────────────────────────────────────────────────────────────────
-  codeql:
-    name: "🔬 CodeQL Analysis"
-    runs-on: ubuntu-latest
-    permissions:
-      actions:        read
-      contents:       read
-      security-events: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Initialize CodeQL engine
-        uses: github/codeql-action/init@v3
-        with:
-          languages: javascript   # covers JS and JSX (both backend and frontend)
-          queries: security-and-quality
-
-      - name: Autobuild project
-        uses: github/codeql-action/autobuild@v3   # auto-detects Node.js
-
-      - name: Run CodeQL analysis
-        uses: github/codeql-action/analyze@v3
-        with:
-          category: /language:javascript
-
-# ─────────────────────────────────────────────────────────────────────────────
-# JOB 3 — TRIVY FILESYSTEM SCAN
 # Scans your package.json dependency trees for known CVEs
 # (Common Vulnerabilities and Exposures) from the NVD database.
 # Example: if express@4.x has a critical RCE, this catches it HERE
@@ -143,7 +81,7 @@ jobs:
   test:
     name: "🧪 Backend Tests (Jest)"
     runs-on: ubuntu-latest
-    needs: [semgrep, codeql, trivy-fs]   # wait for all security scans
+    # Trivy runs independently — tests don’t wait for it
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
