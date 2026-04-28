@@ -1,3 +1,4 @@
+require('express-async-errors'); // must be imported before express routes
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');

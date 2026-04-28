@@ -50,7 +50,6 @@
     "testMatch": [
       "**/tests/**/*.test.js"
     ],
-    "setupFilesAfterFramework": [],
     "coverageDirectory": "coverage",
     "collectCoverageFrom": [
       "src/**/*.js"

@@ -22,7 +22,7 @@ const audit = (action, resource) => async (req, res, next) => {
             ipAddress: req.ip || req.connection?.remoteAddress,
           },
         })
-        .catch((e) => logger.warn(`Audit log failed: ${e.message}`));
+        ?.catch((e) => logger.warn(`Audit log failed: ${e.message}`));
     }
     return originalJson(body);
   };
