@@ -335,29 +335,28 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            ${{ secrets.AWS_REGION }}
 
-      - name: Inject username and pin SHA tag into Dockerrun.aws.json
-        # Dockerrun.aws.json tells EB which Docker image to pull.
-        # We replace :latest with the exact commit SHA so every
-        # deployment is 100% traceable and reproducible.
+      - name: Inject username and SHA into compose file for EB
+        # Replace placeholders in eb-docker-compose.yml:
+        # DOCKERHUB_USERNAME  → actual Docker Hub username
+        # :latest             → exact commit SHA for reproducible deploys
         run: |
-          echo "Before injection:"
-          cat Dockerrun.aws.json
-
           sed -i \
-            "s|REPLACE_WITH_YOUR_DOCKERHUB_USERNAME|${{ secrets.DOCKERHUB_USERNAME }}|g" \
-            Dockerrun.aws.json
+            "s|DOCKERHUB_USERNAME|${{ secrets.DOCKERHUB_USERNAME }}|g" \
+            eb-docker-compose.yml
 
           sed -i \
             "s|:latest|:${{ github.sha }}|g" \
-            Dockerrun.aws.json
+            eb-docker-compose.yml
 
-          echo "After injection:"
-          cat Dockerrun.aws.json
+          echo "Compose file after injection:"
+          cat eb-docker-compose.yml
 
       - name: Create deployment bundle (zip)
-        # EB requires the deployment package to be a zip file.
-        # For Docker deployments it only needs Dockerrun.aws.json.
-        run: zip deploy.zip Dockerrun.aws.json
+        # Bundle the compose file + nginx config for EB.
+        # EB on AL2023 uses docker-compose.yml to run all containers.
+        run: |
+          cp eb-docker-compose.yml docker-compose.yml
+          zip deploy.zip docker-compose.yml nginx/nginx.conf
 
       - name: Deploy to Elastic Beanstalk
         uses: einaregilsson/beanstalk-deploy@v22
