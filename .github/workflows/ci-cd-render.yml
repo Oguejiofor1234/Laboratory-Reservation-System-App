@@ -223,28 +223,38 @@ jobs:
     if: github.ref == 'refs/heads/main'
     steps:
       - name: Trigger backend deployment on Render
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}
         run: |
+          if [ -z "$HOOK" ]; then
+            echo "⚠️ RENDER_DEPLOY_HOOK_BACKEND secret not set — skipping backend deploy"
+            exit 0
+          fi
           echo "Triggering backend deploy..."
-          HTTP_STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" \
-            --fail -X POST "${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}")
+          HTTP_STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" -X POST "$HOOK")
           echo "Render backend response: $HTTP_STATUS"
           if [ "$HTTP_STATUS" != "200" ] && [ "$HTTP_STATUS" != "201" ]; then
             echo "Backend deploy hook failed with status $HTTP_STATUS"
             exit 1
           fi
-          echo "Backend deployment triggered successfully"
+          echo "✅ Backend deployment triggered"
 
       - name: Trigger frontend deployment on Render
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}
         run: |
+          if [ -z "$HOOK" ]; then
+            echo "⚠️ RENDER_DEPLOY_HOOK_FRONTEND secret not set — skipping frontend deploy"
+            exit 0
+          fi
           echo "Triggering frontend deploy..."
-          HTTP_STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" \
-            --fail -X POST "${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}")
+          HTTP_STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" -X POST "$HOOK")
           echo "Render frontend response: $HTTP_STATUS"
           if [ "$HTTP_STATUS" != "200" ] && [ "$HTTP_STATUS" != "201" ]; then
             echo "Frontend deploy hook failed with status $HTTP_STATUS"
             exit 1
           fi
-          echo "Frontend deployment triggered successfully"
+          echo "✅ Frontend deployment triggered"
 
       - name: Print deployment summary
         run: |
