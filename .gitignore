@@ -60,3 +60,9 @@ backend/prisma/migrations/
 frontend/.vite/
 awscliv2.zip
 
+# Uploaded files (served from backend; persisted via Cloudinary in prod)
+backend/uploads/
+
+# Stray files
+packages.microsoft.gpg
+
