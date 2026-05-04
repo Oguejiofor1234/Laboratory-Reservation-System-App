@@ -201,3 +201,12 @@ model AuditLog {
   @@index([resource, resourceId])
   @@map("audit_logs")
 }
+
+// Stores key/value site-wide settings (e.g. cover image URL)
+model SiteSettings {
+  key       String   @id
+  value     String?
+  updatedAt DateTime @updatedAt
+
+  @@map("site_settings")
+}

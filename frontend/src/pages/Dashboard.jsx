@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { CheckCircle, XCircle, Plus, AlertTriangle, GraduationCap } from 'lucide-react';
 import api from '../utils/api';
+import { resolveImageUrl } from '../utils/imageUrl';
 import { useAuth } from '../context/AuthContext';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { STATUS_BG } from '../utils/constants';
@@ -1714,7 +1715,7 @@ const CoverPhotoUpload = () => {
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    api.get('/settings').then(r => setCoverUrl(r.data.data.coverImageUrl)).catch(() => {});
+    api.get('/settings').then(r => setCoverUrl(resolveImageUrl(r.data.data.coverImageUrl))).catch(() => {});
   }, []);
 
   const handleFile = async (e) => {
@@ -1726,7 +1727,7 @@ const CoverPhotoUpload = () => {
       const form = new FormData();
       form.append('cover', file);
       const res = await api.post('/settings/cover', form, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setCoverUrl(res.data.data.coverImageUrl);
+      setCoverUrl(resolveImageUrl(res.data.data.coverImageUrl));
       setCoverPreview(null);
       queryClient.invalidateQueries(['site-settings']);
       toast.success('Cover photo updated! Visit the home page to see it.');

@@ -7,16 +7,9 @@ const { protect, restrictTo } = require('../middleware/auth');
 const validate = require('../middleware/validate');
 const { audit } = require('../middleware/auditLog');
 
-// Multer config for equipment images
-const storage = multer.diskStorage({
-  destination: path.join(__dirname, '../../uploads/equipment'),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `eq-${req.params.id}-${Date.now()}${ext}`);
-  },
-});
+// Multer: buffer in memory so we can upload to Cloudinary (or save to disk locally)
 const imageUpload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 8 * 1024 * 1024 }, // 8 MB
   fileFilter: (req, file, cb) => {
     const allowed = /jpeg|jpg|png|webp|gif/;

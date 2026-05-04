@@ -21,7 +21,7 @@ exports.getAll = async (req, res) => {
   const enriched = await Promise.all(
     equipment.map(async (eq) => {
       // Run all per-equipment queries in parallel
-      const [activeReservations, upcomingReservations, upcomingTraining] = await Promise.all([
+      const [activeReservations, activeTraining, upcomingReservations, upcomingTraining] = await Promise.all([
         // Active reservations overlapping right now
         prisma.reservation.findMany({
           where: {
@@ -33,7 +33,19 @@ exports.getAll = async (req, res) => {
           include: { user: { select: { firstName: true, lastName: true } } },
           orderBy: { endTime: 'asc' },
         }),
-        // ALL upcoming reservations (starts in future)
+        // Active CONFIRMED training sessions happening right now (within 1h window)
+        prisma.trainingSession.findMany({
+          where: {
+            equipmentId: eq.id,
+            status: 'CONFIRMED',
+            scheduledAt: { lte: now },
+            // training is considered active for 1 hour after scheduledAt
+          },
+          include: { student: { select: { firstName: true, lastName: true } } },
+          orderBy: { scheduledAt: 'desc' },
+          take: 1,
+        }),
+        // Upcoming PENDING or CONFIRMED reservations
         prisma.reservation.findMany({
           where: {
             equipmentId: eq.id,
@@ -44,11 +56,11 @@ exports.getAll = async (req, res) => {
           orderBy: { startTime: 'asc' },
           take: 8,
         }),
-        // ALL upcoming training sessions for this equipment
+        // Upcoming CONFIRMED training sessions only (pending not shown until confirmed)
         prisma.trainingSession.findMany({
           where: {
             equipmentId: eq.id,
-            status: { in: ['PENDING', 'CONFIRMED'] },
+            status: 'CONFIRMED',
             scheduledAt: { gt: now },
           },
           include: { student: { select: { firstName: true, lastName: true } } },
@@ -57,11 +69,26 @@ exports.getAll = async (req, res) => {
         }),
       ]);
 
-      // Current user (first active reservation)
+      // Check if a confirmed training is happening right now (within its 1-hour slot)
+      const activeTrainingNow = activeTraining.find(s => {
+        const end = new Date(new Date(s.scheduledAt).getTime() + 60 * 60 * 1000);
+        return end > now;
+      }) || null;
+
+      // Current user: active reservation OR active confirmed training
       const currentRes = activeReservations[0] || null;
       const lastActive = activeReservations[activeReservations.length - 1] || null;
 
-      // Merge reservations + training sessions, sorted by start time
+      const currentUser = currentRes
+        ? { name: `${currentRes.user.firstName} ${currentRes.user.lastName}`, startTime: currentRes.startTime, endTime: currentRes.endTime, type: 'booking' }
+        : activeTrainingNow
+        ? { name: `${activeTrainingNow.student.firstName} ${activeTrainingNow.student.lastName}`,
+            startTime: activeTrainingNow.scheduledAt,
+            endTime: new Date(new Date(activeTrainingNow.scheduledAt).getTime() + 60 * 60 * 1000),
+            type: 'training' }
+        : null;
+
+      // Merge confirmed training + all reservations for upcoming list
       const allUpcoming = [
         ...upcomingReservations.map(r => ({
           type:      'booking',
@@ -74,20 +101,19 @@ exports.getAll = async (req, res) => {
           type:      'training',
           userName:  `${s.student.firstName} ${s.student.lastName}`,
           startTime: s.scheduledAt,
-          endTime:   new Date(new Date(s.scheduledAt).getTime() + 60 * 60 * 1000), // assume 1h
-          status:    s.status,
+          endTime:   new Date(new Date(s.scheduledAt).getTime() + 60 * 60 * 1000),
+          status:    'CONFIRMED',
         })),
       ].sort((a, b) => new Date(a.startTime) - new Date(b.startTime)).slice(0, 10);
 
+      const inUseCount = activeReservations.length + (activeTrainingNow ? 1 : 0);
+
       return {
         ...eq,
-        availableNow:   Math.max(0, eq.totalUnits - activeReservations.length),
-        currentUser:    currentRes
-          ? { name: `${currentRes.user.firstName} ${currentRes.user.lastName}`, startTime: currentRes.startTime, endTime: currentRes.endTime }
-          : null,
-        availableFrom:  lastActive ? lastActive.endTime : null,
+        availableNow:    Math.max(0, eq.totalUnits - inUseCount),
+        currentUser,
+        availableFrom:   lastActive ? lastActive.endTime : null,
         upcomingBookings: allUpcoming,
-        // Keep confirmedNext for backward-compat (LandingPublic uses it)
         confirmedNext: upcomingReservations.find(r => r.status === 'CONFIRMED')
           ? { userName: `${upcomingReservations.find(r => r.status === 'CONFIRMED').user.firstName} ${upcomingReservations.find(r => r.status === 'CONFIRMED').user.lastName}`,
               startTime: upcomingReservations.find(r => r.status === 'CONFIRMED').startTime,
@@ -146,10 +172,38 @@ exports.updateVideo = async (req, res) => {
   res.json({ success: true, data: equipment });
 };
 
+// Helper: true when all three Cloudinary env vars are present
+const hasCloudinary = () =>
+  !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
+
 // ─── Upload equipment image ────────────────────────────────────────────────
 exports.uploadImage = async (req, res) => {
   if (!req.file) throw new AppError('No image file provided', 400);
-  const imageUrl = `/uploads/equipment/${req.file.filename}`;
+
+  let imageUrl;
+
+  if (hasCloudinary()) {
+    // Production: upload buffer to Cloudinary → get permanent HTTPS URL
+    const cloudinary = require('../config/cloudinary');
+    const result = await new Promise((resolve, reject) => {
+      cloudinary.uploader.upload_stream(
+        { folder: 'lab1708/equipment', public_id: `eq-${req.params.id}`, overwrite: true, resource_type: 'image' },
+        (error, result) => (error ? reject(error) : resolve(result))
+      ).end(req.file.buffer);
+    });
+    imageUrl = result.secure_url;
+  } else {
+    // Local dev fallback: write buffer to disk
+    const fs   = require('fs');
+    const path = require('path');
+    const uploadDir = path.join(__dirname, '../../uploads/equipment');
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+    const ext      = path.extname(req.file.originalname).toLowerCase();
+    const filename = `eq-${req.params.id}-${Date.now()}${ext}`;
+    fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
+    imageUrl = `/uploads/equipment/${filename}`;
+  }
+
   const equipment = await prisma.equipment.update({
     where: { id: req.params.id },
     data: { imageUrl },
@@ -160,12 +214,23 @@ exports.uploadImage = async (req, res) => {
 exports.deleteImage = async (req, res) => {
   const equipment = await prisma.equipment.findUnique({ where: { id: req.params.id } });
   if (!equipment) throw new AppError('Equipment not found', 404);
+
   if (equipment.imageUrl) {
-    const fs = require('fs');
-    const path = require('path');
-    const filePath = path.join(__dirname, '../../', equipment.imageUrl);
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    if (equipment.imageUrl.includes('cloudinary.com')) {
+      // Delete from Cloudinary
+      const cloudinary = require('../config/cloudinary');
+      await cloudinary.uploader
+        .destroy(`lab1708/equipment/eq-${req.params.id}`, { resource_type: 'image' })
+        .catch(() => {}); // ignore – image may already be gone
+    } else {
+      // Local disk cleanup
+      const fs   = require('fs');
+      const path = require('path');
+      const filePath = path.join(__dirname, '../../', equipment.imageUrl);
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    }
   }
+
   const updated = await prisma.equipment.update({
     where: { id: req.params.id },
     data: { imageUrl: null },

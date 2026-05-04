@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { formatTimeET, formatMonthDayET } from "../../utils/timezone";
+import { resolveImageUrl } from '../../utils/imageUrl';
 
 const circleColors = [
   ['#dff4f5','#00B5BD'],
@@ -13,7 +14,9 @@ const circleColors = [
 ];
 
 const EquipmentCard = ({ equipment, selected, onSelect }) => {
-  const { name, description, icon, maintenanceMode, currentUser, upcomingBookings = [], availableNow, imageUrl, personInCharge } = equipment;
+  const rawImageUrl = equipment.imageUrl;
+  const { name, description, icon, maintenanceMode, currentUser, upcomingBookings = [], availableNow, personInCharge } = equipment;
+  const imageUrl = resolveImageUrl(rawImageUrl);
 
   const inUseNow = !!currentUser || availableNow === 0;
   const blocked = maintenanceMode || inUseNow;
@@ -163,10 +166,21 @@ const EquipmentCard = ({ equipment, selected, onSelect }) => {
 
         {/* Currently in use */}
         {currentUser && (
-          <div style={{ background: '#fff5f5', border: '1px solid #fcc', borderRadius: 8, padding: '7px 10px' }}>
-            <p style={{ fontSize: 9, color: '#e74c3c', margin: '0 0 2px', fontWeight: 800, letterSpacing: 0.5, textTransform: 'uppercase' }}>🔴 In Use Now</p>
-            <p style={{ fontSize: 11, color: '#c0392b', margin: '0 0 1px', fontWeight: 700 }}>{currentUser.name}</p>
-            <p style={{ fontSize: 10, color: '#e74c3c', margin: 0 }}>
+          <div style={{
+            background: currentUser.type === 'training' ? '#f0f4ff' : '#fff5f5',
+            border: `1px solid ${currentUser.type === 'training' ? '#b2c8f0' : '#fcc'}`,
+            borderRadius: 8, padding: '7px 10px',
+          }}>
+            <p style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.5, textTransform: 'uppercase', margin: '0 0 2px',
+              color: currentUser.type === 'training' ? '#3b66cc' : '#e74c3c' }}>
+              {currentUser.type === 'training' ? '🎓 Training In Progress' : '🔴 In Use Now'}
+            </p>
+            <p style={{ fontSize: 11, fontWeight: 700, margin: '0 0 1px',
+              color: currentUser.type === 'training' ? '#1a3a7a' : '#c0392b' }}>
+              {currentUser.name}
+            </p>
+            <p style={{ fontSize: 10, margin: 0,
+              color: currentUser.type === 'training' ? '#3b66cc' : '#e74c3c' }}>
               Free at <strong>{formatTimeET(currentUser.endTime)}</strong>
             </p>
           </div>

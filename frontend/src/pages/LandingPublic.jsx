@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import api from '../utils/api';
+import { resolveImageUrl } from '../utils/imageUrl';
 import { useAuth } from '../context/AuthContext';
 
 // ── Colours ──────────────────────────────────────────────────────────────────
@@ -296,7 +297,7 @@ const EquipRow = ({ eq, t, reverse, lang }) => {
           </div>
         )}
         {eq.imageUrl
-          ? <img src={eq.imageUrl} alt={eq.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+          ? <img src={resolveImageUrl(eq.imageUrl)} alt={eq.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
           : eq.icon}
       </div>
     </motion.div>
@@ -466,7 +467,7 @@ const LandingPublic = () => {
     staleTime: 0,          // always fetch fresh
     refetchOnMount: true,
   });
-  const coverImageUrl = siteSettings?.coverImageUrl || null;
+  const coverImageUrl = resolveImageUrl(siteSettings?.coverImageUrl) || null;
 
   return (
     <div style={{ fontFamily: 'Inter, system-ui, sans-serif', background: C.white, color: C.text, minHeight: '100vh' }}>

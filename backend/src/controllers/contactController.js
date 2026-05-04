@@ -44,14 +44,17 @@ exports.sendMessage = async (req, res) => {
     (payload.equipment ? ` — Equipment: ${payload.equipment}` : '')
   );
 
-  // ── Send both emails concurrently ─────────────────────────────────────────
-  await Promise.allSettled([
-    sendContactNotification(payload),  // → miracle2cool247@gmail.com
-    sendContactAutoReply(payload),     // → sender's inbox (auto-reply)
-  ]);
-
+  // ── Respond immediately — send emails in the background ─────────────────
+  // Fire-and-forget: don't await the emails so the user gets
+  // an instant response instead of waiting 3-5 seconds for SMTP.
   res.json({
     success: true,
     message: 'Your message has been sent. We will be in touch shortly.',
   });
+
+  // Emails sent after response is already delivered to browser
+  Promise.allSettled([
+    sendContactNotification(payload),  // → miracle2cool247@gmail.com
+    sendContactAutoReply(payload),     // → sender's inbox (auto-reply)
+  ]).catch(e => logger.error(`[Contact] Email error: ${e.message}`));
 };

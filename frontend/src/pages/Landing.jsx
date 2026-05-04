@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight } from 'lucide-react';
 import api from '../utils/api';
+import { resolveImageUrl } from '../utils/imageUrl';
 import { useAuth } from '../context/AuthContext';
 import LanguageSwitcher from '../components/common/LanguageSwitcher';
 import LoadingSpinner from '../components/common/LoadingSpinner';
@@ -153,7 +154,7 @@ const Landing = () => {
                   ))}
                   {eq.imageUrl ? (
                     <img
-                      src={eq.imageUrl}
+                      src={resolveImageUrl(eq.imageUrl)}
                       alt={eq.name}
                       style={{ width: '62%', height: '62%', objectFit: 'cover', borderRadius: 16, boxShadow: '0 4px 20px rgba(0,59,92,0.15)' }}
                     />

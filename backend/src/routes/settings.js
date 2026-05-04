@@ -4,16 +4,9 @@ const path = require('path');
 const settingsController = require('../controllers/settingsController');
 const { protect, restrictTo } = require('../middleware/auth');
 
-// Multer config for site cover image
-const storage = multer.diskStorage({
-  destination: path.join(__dirname, '../../uploads/site'),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `cover${ext}`);
-  },
-});
+// Multer: buffer in memory so we can upload to Cloudinary (or save to disk locally)
 const coverUpload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 15 * 1024 * 1024 }, // 15 MB
   fileFilter: (req, file, cb) => {
     if (/jpeg|jpg|png|webp/.test(path.extname(file.originalname).toLowerCase())) cb(null, true);
