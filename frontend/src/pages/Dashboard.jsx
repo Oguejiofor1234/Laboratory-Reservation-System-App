@@ -31,11 +31,24 @@ const VideoPlayer = ({ url }) => {
       frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
       allowFullScreen title="Equipment Tutorial" />
   );
+  // Detect MIME type from URL extension so browsers can identify the format
+  const getMime = (src) => {
+    if (src.includes('.webm')) return 'video/webm';
+    if (src.includes('.mov'))  return 'video/quicktime';
+    if (src.includes('.avi'))  return 'video/x-msvideo';
+    return 'video/mp4'; // default — Cloudinary always serves mp4
+  };
   return (
-    <video controls className="w-full rounded-lg" style={{ maxHeight: 200 }}>
-      <source src={v.src} />
-      <a href={v.src} target="_blank" rel="noreferrer" className="text-xs text-teal underline">Watch Tutorial →</a>
-    </video>
+    <div>
+      <video controls className="w-full rounded-lg" style={{ maxHeight: 240 }}
+        preload="metadata" playsInline>
+        <source src={v.src} type={getMime(v.src)} />
+      </video>
+      <a href={v.src} target="_blank" rel="noreferrer"
+        style={{ display:'block', textAlign:'center', fontSize:10, color:'#00B5BD', marginTop:4 }}>
+        ↗ Open in new tab
+      </a>
+    </div>
   );
 };
 
