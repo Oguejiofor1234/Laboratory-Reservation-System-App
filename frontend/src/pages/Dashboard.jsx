@@ -351,28 +351,59 @@ const ImageUpload = ({ equipmentId, currentImageUrl }) => {
 
 // ─── Videos Manager (Supervisor — multi-video) ──────────────────────────────────
 const VideosManager = ({ equipmentId, currentVideos }) => {
-  const [items, setItems] = useState(Array.isArray(currentVideos) ? currentVideos : []);
-  const [adding, setAdding] = useState(false);
-  const [name, setName] = useState('');
-  const [url, setUrl] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [items, setItems]       = useState(Array.isArray(currentVideos) ? currentVideos : []);
+  const [adding, setAdding]     = useState(false);
+  const [addMode, setAddMode]   = useState('upload'); // 'upload' | 'url'
+  const [name, setName]         = useState('');
+  const [url, setUrl]           = useState('');
+  const [videoFile, setVideoFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving]     = useState(false);
   const queryClient = useQueryClient();
+
+  const resetForm = () => { setName(''); setUrl(''); setVideoFile(null); };
 
   const persist = async (updated) => {
     setSaving(true);
     try {
       await api.patch(`/equipment/${equipmentId}/videos`, { videos: updated });
-      toast.success('Videos updated!');
+      toast.success('Video saved!');
       queryClient.invalidateQueries(['dashboard-tech']);
     } catch { toast.error('Failed to save.'); }
     finally { setSaving(false); }
   };
 
-  const add = () => {
+  // ── Upload file to Cloudinary via backend ──────────────────────
+  const handleFileUpload = async () => {
+    if (!name.trim()) return toast.error('Please enter a video title first.');
+    if (!videoFile)   return toast.error('Please select a video file.');
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append('video', videoFile);
+      const res = await api.post(`/equipment/${equipmentId}/video-upload`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const videoUrl = res.data.videoUrl;
+      const updated = [...items, { name: name.trim(), url: videoUrl }];
+      setItems(updated);
+      await persist(updated);
+      resetForm();
+      setAdding(false);
+      toast.success('Video uploaded and saved!');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Upload failed. Check file size (max 200 MB).');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // ── Add by URL ──────────────────────────────────────────────────
+  const handleAddUrl = () => {
     if (!name.trim() || !url.trim()) return toast.error('Both title and URL are required.');
     const updated = [...items, { name: name.trim(), url: url.trim() }];
     setItems(updated); persist(updated);
-    setName(''); setUrl(''); setAdding(false);
+    resetForm(); setAdding(false);
   };
 
   const remove = (idx) => {
@@ -381,42 +412,114 @@ const VideosManager = ({ equipmentId, currentVideos }) => {
     setItems(updated); persist(updated);
   };
 
+  const tabStyle = (active) => ({
+    flex: 1, padding: '5px 0', fontSize: 10, fontWeight: 700, border: 'none', cursor: 'pointer',
+    borderRadius: 6, transition: 'all 0.18s',
+    background: active ? '#003B5C' : 'transparent',
+    color: active ? '#fff' : '#9ab0c4',
+  });
+
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <p className="text-[9px] font-mono text-text-muted uppercase tracking-wider">Tutorial Videos</p>
-        <button onClick={() => setAdding(a => !a)}
+        <p className="text-[9px] font-mono text-text-muted uppercase tracking-wider">🎬 Tutorial Videos</p>
+        <button onClick={() => { setAdding(a => !a); resetForm(); }}
           className="text-[9px] font-mono text-teal hover:underline">
-          {adding ? 'Cancel' : '+ Add'}
+          {adding ? 'Cancel' : '+ Add Video'}
         </button>
       </div>
 
+      {/* Existing videos list */}
       {items.length === 0 && !adding && (
-        <p className="text-[10px] text-text-muted italic">No videos yet.</p>
+        <p className="text-[10px] text-text-muted italic">No videos yet. Click "+ Add Video" to get started.</p>
       )}
       {items.map((v, i) => (
-        <div key={i} className="flex items-center gap-1 py-0.5 group">
-          <span className="text-[9px]">🎬</span>
-          <span className="text-[10px] text-text-secondary flex-1 truncate" title={v.url}>{v.name}</span>
+        <div key={i} style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 8px', borderRadius:7, background:'#f4f9f9', marginBottom:4 }}>
+          <span style={{ fontSize:14 }}>🎬</span>
+          <span style={{ fontSize:11, color:'#003B5C', fontWeight:700, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={v.url}>{v.name}</span>
+          <span style={{ fontSize:9, color: v.url.includes('cloudinary') ? '#27ae60' : v.url.includes('youtube') || v.url.includes('youtu.be') ? '#e74c3c' : '#9ab0c4', fontWeight:700 }}>
+            {v.url.includes('cloudinary') ? '☁ Cloud' : v.url.includes('youtube') || v.url.includes('youtu.be') ? '▶ YouTube' : '🔗 URL'}
+          </span>
           <button onClick={() => remove(i)}
-            className="text-[10px] text-status-rejected opacity-0 group-hover:opacity-100 transition-opacity hover:underline shrink-0">
-            🗑 Delete
+            style={{ fontSize:9, color:'#e74c3c', background:'none', border:'none', cursor:'pointer', padding:'1px 4px' }}>
+            🗑
           </button>
         </div>
       ))}
 
+      {/* Add form */}
       {adding && (
-        <div className="flex flex-col gap-1 mt-1 pt-1 border-t border-dark-border">
-          <input value={name} onChange={e => setName(e.target.value)}
-            placeholder="Video title (e.g. Machine Overview)"
-            className="text-[10px] font-mono border border-dark-border rounded px-2 py-1 bg-dark-bg text-text-primary" />
-          <input value={url} onChange={e => setUrl(e.target.value)}
-            placeholder="YouTube link or direct MP4 URL"
-            className="text-[10px] font-mono border border-dark-border rounded px-2 py-1 bg-dark-bg text-text-primary" />
-          <button onClick={add} disabled={saving}
-            className="text-[10px] font-mono px-2 py-0.5 rounded bg-teal text-dark-bg font-bold self-start">
-            {saving ? '…' : 'Save Video'}
-          </button>
+        <div style={{ marginTop:8, padding:'12px', background:'#f8fbff', borderRadius:10, border:'1.5px solid #dde8f0' }}>
+
+          {/* Tabs */}
+          <div style={{ display:'flex', gap:4, marginBottom:10, background:'#EEF4FB', borderRadius:8, padding:3 }}>
+            <button style={tabStyle(addMode === 'upload')} onClick={() => { setAddMode('upload'); resetForm(); }}>
+              📤 Upload File
+            </button>
+            <button style={tabStyle(addMode === 'url')} onClick={() => { setAddMode('url'); resetForm(); }}>
+              🔗 Add URL
+            </button>
+          </div>
+
+          {/* Title — shared */}
+          <input
+            value={name} onChange={e => setName(e.target.value)}
+            placeholder="Video title (e.g. SEM Operating Procedure)"
+            style={{ width:'100%', fontSize:11, border:'1.5px solid #c8d8e8', borderRadius:7, padding:'6px 9px', marginBottom:8, outline:'none', boxSizing:'border-box', fontFamily:'Inter,system-ui,sans-serif' }}
+          />
+
+          {addMode === 'upload' ? (
+            /* ── Upload tab ── */
+            <>
+              <label style={{
+                display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+                gap:6, padding:'14px', border:`2px dashed ${videoFile ? '#00B5BD' : '#c8d8e8'}`,
+                borderRadius:9, cursor:'pointer', background: videoFile ? '#f0fffe' : '#fff',
+                marginBottom:8, transition:'all 0.2s',
+              }}>
+                <span style={{ fontSize:22 }}>{videoFile ? '✅' : '🎬'}</span>
+                <span style={{ fontSize:10, fontWeight:700, color: videoFile ? '#00B5BD' : '#9ab0c4', textAlign:'center' }}>
+                  {videoFile ? videoFile.name : 'Click to select an MP4, MOV, or WEBM file'}
+                </span>
+                {videoFile && (
+                  <span style={{ fontSize:9, color:'#9ab0c4' }}>
+                    {(videoFile.size / (1024*1024)).toFixed(1)} MB
+                  </span>
+                )}
+                <input type="file" accept="video/mp4,video/quicktime,video/webm,video/avi,.mp4,.mov,.webm,.avi"
+                  style={{ display:'none' }}
+                  onChange={e => setVideoFile(e.target.files[0] || null)}
+                  disabled={uploading}
+                />
+              </label>
+              <p style={{ fontSize:9, color:'#9ab0c4', margin:'0 0 8px', textAlign:'center' }}>Max 200 MB · Stored permanently on Cloudinary</p>
+              <button onClick={handleFileUpload} disabled={uploading || !videoFile || !name.trim()}
+                style={{
+                  width:'100%', padding:'8px', borderRadius:8, border:'none', cursor: (uploading || !videoFile || !name.trim()) ? 'not-allowed' : 'pointer',
+                  background: (uploading || !videoFile || !name.trim()) ? '#c8d8e8' : 'linear-gradient(135deg,#003B5C,#00B5BD)',
+                  color:'#fff', fontWeight:800, fontSize:12,
+                }}>
+                {uploading ? '⏳ Uploading… (this may take a moment)' : '📤 Upload & Save Video'}
+              </button>
+            </>
+          ) : (
+            /* ── URL tab ── */
+            <>
+              <input value={url} onChange={e => setUrl(e.target.value)}
+                placeholder="YouTube, Vimeo, or direct MP4 URL"
+                style={{ width:'100%', fontSize:11, border:'1.5px solid #c8d8e8', borderRadius:7, padding:'6px 9px', marginBottom:4, outline:'none', boxSizing:'border-box', fontFamily:'Inter,system-ui,sans-serif' }}
+              />
+              <p style={{ fontSize:9, color:'#9ab0c4', margin:'0 0 8px' }}>💡 YouTube links render as embedded players for students.</p>
+              <button onClick={handleAddUrl} disabled={saving || !url.trim() || !name.trim()}
+                style={{
+                  width:'100%', padding:'8px', borderRadius:8, border:'none', cursor: (saving || !url.trim() || !name.trim()) ? 'not-allowed' : 'pointer',
+                  background: (saving || !url.trim() || !name.trim()) ? '#c8d8e8' : '#003B5C',
+                  color:'#fff', fontWeight:800, fontSize:12,
+                }}>
+                {saving ? '…' : '🔗 Save URL'}
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

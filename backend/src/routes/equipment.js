@@ -18,6 +18,17 @@ const imageUpload = multer({
   },
 });
 
+// Multer for video uploads (200 MB limit)
+const videoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 200 * 1024 * 1024 }, // 200 MB
+  fileFilter: (req, file, cb) => {
+    const allowed = /mp4|mov|avi|webm|mkv|m4v/;
+    if (allowed.test(path.extname(file.originalname).toLowerCase())) cb(null, true);
+    else cb(new Error('Only video files are allowed (mp4, mov, webm, avi)'));
+  },
+});
+
 // Public: list equipment (auth optional for cert status)
 router.get('/', (req, res, next) => {
   if (req.headers.authorization) return protect(req, res, () => next());
@@ -43,6 +54,7 @@ router.patch('/:id', restrictTo('TECHNOLOGIST', 'ADMIN'),
 
 router.post('/:id/image', restrictTo('TECHNOLOGIST', 'ADMIN'), imageUpload.single('image'), equipmentController.uploadImage);
 router.delete('/:id/image', restrictTo('TECHNOLOGIST', 'ADMIN'), equipmentController.deleteImage);
+router.post('/:id/video-upload', restrictTo('TECHNOLOGIST', 'ADMIN'), videoUpload.single('video'), equipmentController.uploadVideoFile);
 router.patch('/:id/video', restrictTo('TECHNOLOGIST', 'ADMIN'), equipmentController.updateVideo);
 router.patch('/:id/videos', restrictTo('TECHNOLOGIST', 'ADMIN'), equipmentController.updateVideos);
 router.patch('/:id/materials', restrictTo('TECHNOLOGIST', 'ADMIN'), equipmentController.updateMaterials);

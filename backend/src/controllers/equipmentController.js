@@ -162,6 +162,27 @@ exports.update = async (req, res) => {
   res.json({ success: true, data: equipment });
 };
 
+// ─── Upload video file to Cloudinary ────────────────────────────────────────
+exports.uploadVideoFile = async (req, res) => {
+  if (!req.file) throw new AppError('No video file provided', 400);
+  if (!hasCloudinary()) throw new AppError('Video upload requires Cloudinary env vars (CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET)', 500);
+
+  const cloudinary = require('../config/cloudinary');
+  const result = await new Promise((resolve, reject) => {
+    cloudinary.uploader.upload_stream(
+      {
+        folder:        'lab1708/videos',
+        public_id:     `vid-${req.params.id}-${Date.now()}`,
+        resource_type: 'video',
+        // Deliver as-is — no transformations needed for training videos
+      },
+      (error, result) => (error ? reject(error) : resolve(result))
+    ).end(req.file.buffer);
+  });
+
+  res.json({ success: true, videoUrl: result.secure_url });
+};
+
 // ─── Update tutorial video URL ───────────────────────────────────────────────
 exports.updateVideo = async (req, res) => {
   const { videoUrl } = req.body;
